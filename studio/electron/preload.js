@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld('cubelink', {
   connect:   (p) => ipcRenderer.invoke('connect', p),
   write:     (d) => ipcRenderer.invoke('write', d),
   disconnect: () => ipcRenderer.invoke('disconnect'),
- 
+   focusWindow: () => ipcRenderer.invoke('focus-window'),
   onData:    (cb) => ipcRenderer.on('serial-data',   (_e, d) => cb(d)),
   onStatus:  (cb) => ipcRenderer.on('serial-status', (_e, s) => cb(s))
 });

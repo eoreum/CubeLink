@@ -1,7 +1,7 @@
 {
   "name": "cubelinkelectron",
-  "version": "1.0.0",
-  "description": "",
+  "version": "3.4.3",
+  "description": "CubeLink educational robotics studio by Eoreum",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -9,8 +9,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Eoreum",
+  "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
     "electron": "^43.1.0",
@@ -20,23 +20,30 @@
     "serialport": "^13.0.0"
   },
     "build": {
-    "appId": "com.cubelink.studio",
-    "productName": "Cubelink_Studio",
+    "appId": "com.eoreum.cubelinkstudio",
+    "productName": "CubeLink Studio",
     "asar": true,
     "files": [
       "main.js",
       "preload.js",
-      "index.html",
-      "manifest.json",
-      "sw.js",
-      "css/**/*",
-      "js/**/*",
-      "libs/**/*",
-        "models/**/*",
-      "*.png"
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../web",
+        "to": "web",
+        "filter": [
+          "**/*",
+          "!**/*.bak",
+          "!**/*.backup*",
+          "!**/*.broken",
+          "!**/*.tmp"
+        ]
+      }
     ],
     "win": {
-      "target": "portable"
+      "target": "portable",
+      "icon": "icon.ico"
     },
     "portable": {
       "artifactName": "Cubelink_Studio.exe"

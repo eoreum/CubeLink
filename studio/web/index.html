@@ -14,27 +14,27 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="CUBELINK">
 
-  <title>CUBELINK  Studio v2.9.2 · The Pinnacle of Robot Education</title>
+  <title>CubeLink Studio v3.4.3 · The Pinnacle of Robot Education</title>
 
   <!-- SEO -->
   <meta name="description" content="CUBELINK Studio - 학생을 위한 무료 로봇팔 블록 코딩 학습 도구. 9단계 미션, 3D 시뮬레이터, 아두이노 실시간 제어를 한 곳에서.">
   <meta name="keywords" content="CUBELINK, 큐브링크, 로봇팔, 블록코딩, 아두이노, 교육, 학생, Blockly, 무료, 코딩 학습">
-  <meta name="author" content="tjind">
+  <meta name="author" content="Eoreum">
   <meta name="robots" content="index, follow">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="CUBELINK Studio - 로봇팔 블록 코딩 학습 플랫폼">
   <meta property="og:description" content="9단계 미션으로 배우는 아두이노 로봇팔 코딩. 블록 코딩 + 3D 시뮬레이터 + 실시간 제어.">
-  <meta property="og:url" content="https://tjind.github.io/Cubelink-studio/">
-  <meta property="og:image" content="https://tjind.github.io/Cubelink-studio/og-image.png">
+  <meta property="og:url" content="https://eoreum.github.io/CubeLink/">
+  <meta property="og:image" content="https://eoreum.github.io/CubeLink/og-image.png">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="CUBELINK Studio">
   <meta name="twitter:description" content="학생용 무료 로봇팔 블록 코딩 학습 도구">
 
-  <link rel="canonical" href="https://tjind.github.io/Cubelink-studio/">
+  <link rel="canonical" href="https://eoreum.github.io/CubeLink/">
 
   <script src="libs/blockly/blockly.min.js"></script>
   <script src="libs/blockly/ko.js"></script>
@@ -70,8 +70,12 @@
 <header>
   <button class="btn hamburger-btn" id="btnHamburger" title="미션 목록 열기/닫기">☰</button>
   <div class="brand">
-    <div class="brand-logo">EOROUM</div>
-    <div class="brand-title">CUBELINK STUDIO<span class="brand-version">v2.9.2</span></div>
+       <div class="brand-logo" id="brandLogo" style="cursor:pointer;" title="대문으로 돌아가기">
+      <img src="logo.png" alt="Eoreum" style="height:32px; display:block;"
+           onerror="this.style.display='none'; this.parentNode.textContent='Eoreum';">
+    </div>
+
+    <div class="brand-title">CubeLink Studio<span class="brand-version">v3.4.3</span></div>
   </div>
 
   <div class="header-actions">
@@ -84,6 +88,11 @@
       title="로봇을 연결하고 모든 모터를 90도 차렷 자세로 정렬합니다.">
       🔌 로봇 연결 및 초기화 (90도)
     </button>
+        <button class="btn" id="btnSafeShutdown" style="display:none; background: linear-gradient(135deg, #e67e22, #d35400) !important; color: white !important; font-weight: 700;"
+      title="서보를 안전 위치로 정렬한 뒤 연결을 종료합니다 (뚜껑 닫기 가능 자세)">
+      🔻 안전 종료
+    </button>
+
 
     <button class="btn primary" id="btnRunRealtime"
       style="background: linear-gradient(135deg, #D4AF37, #B8941F) !important; color: black !important; font-weight: 700;"
@@ -260,6 +269,8 @@
     <block type="math_arithmetic"></block>
   </category>
   <category name="📦 변수" colour="#A65C81" custom="VARIABLE"></category>
+    <category name="🧩 함수" colour="#8E44AD" custom="PROCEDURE"></category>
+
   <category name="📡 시리얼 통신" colour="#27AE60">
     <block type="cubelink_serial_begin"></block>
     <block type="cubelink_serial_println_text"></block>
@@ -590,7 +601,7 @@ function diagnoseEnvironment() {
   if (window.cubelink) return issues;   // ★ 추가: Electron 앱에서는 진단 배너 생략
   const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   if (location.protocol !== 'https:' && !isLocal) {
-    issues.push({ severity:'fatal', msg:'⚠️ HTTPS 주소가 아닙니다. https://tjind.github.io/Cubelink-studio/ 로 접속하세요.' });
+    issues.push({ severity:'fatal', msg:'⚠️ HTTPS 주소가 아닙니다. https://eoreum.github.io/CubeLink/ 로 접속하세요.' });
   }
   if (!('serial' in navigator)) {
     issues.push({ severity:'fatal', msg:'⚠️ 이 브라우저는 로봇 연결을 지원하지 않습니다. Chrome 또는 Edge(데스크톱/노트북/Chromebook)를 사용하세요.' });
@@ -1289,7 +1300,7 @@ window.addEventListener('load', () => {
       return;
     }
     if (matches(cmd, CMD_VERSION)) {
-      appendToMonitor('CUBELINK Studio v2.9.2', '#3498db');
+      appendToMonitor('CubeLink Studio v3.4.3', '#3498db');
       return;
     }
 
@@ -1380,7 +1391,18 @@ window.addEventListener('load', () => {
 
      <!-- PWA: Service Worker 등록 (v2.8.9: 자동 업데이트 감지) -->
     <script>
-      if ('serviceWorker' in navigator) {
+           // exe(Electron)에서는 Service Worker 사용 안 함 → 옛 캐시가 최신 코드를 가로채는 문제 방지
+      if (window.cubelink && 'serviceWorker' in navigator) {
+        // exe에서는 기존에 등록된 SW를 모두 해제하고 캐시도 비움
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          regs.forEach((r) => r.unregister());
+          console.log('[PWA] exe 환경 → Service Worker 해제 완료');
+        });
+        if (window.caches) {
+          caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
+        }
+      } else if (!window.cubelink && 'serviceWorker' in navigator) {
+
         window.addEventListener('load', () => {
                  // v2.9.2: 새 버전 SW가 제어권을 잡으면 자동 1회 새로고침 (강사 기기 깔끔 유지)
           // controller가 이미 있을 때(=재방문 강사)만 새로고침 → 학생 첫 접속은 깜빡임 없음
@@ -1600,7 +1622,14 @@ window.addEventListener('load', () => {
   // 스타일을 코드로 직접 주입 (별도 CSS 파일 수정 불필요)
   const style = document.createElement('style');
   style.textContent = `
-`;
+  #robot-3d-view {
+  transition: height 0.3s ease;
+}
+#robot-3d-view.zoom-active {
+  height: 480px !important;
+}
+
+  `;
   document.head.appendChild(style);
     // 초음파 거리 오버레이 라벨 생성 (3D 뷰 위 우측 상단)
   function ensureUsOverlay() {
@@ -1633,38 +1662,102 @@ window.addEventListener('load', () => {
       ov.style.display = 'none';
     }
   }, 200);
-})();
+
+
+    // ▶ 실행 시작 시: 확대 (실행 중엔 계속 확대 상태 유지)
+  window.triggerRobotZoom = function () {
+    if (!window._runtimeRunning) return;
+    const view = document.getElementById('robot-3d-view');
+    if (!view) return;
+    view.classList.add('zoom-active');
+  };
+
+  // ⏹ 정지 시: 축소 (수동 호출용)
+  window.stopRobotZoom = function () {
+    const view = document.getElementById('robot-3d-view');
+    if (view) view.classList.remove('zoom-active');
+  };
+
+  // ★ _runtimeRunning이 false로 바뀌는 순간을 자동 감지하여 축소
+  (function watchRuntimeStop(){
+    let lastState = null;
+    setInterval(function(){
+      const cur = !!window._runtimeRunning;
+      if (cur === lastState) return;
+      lastState = cur;
+      const view = document.getElementById('robot-3d-view');
+      if (!view) return;
+      if (cur) view.classList.add('zoom-active');
+      else view.classList.remove('zoom-active');
+    }, 100);
+  })();
+
 })();
 </script>
+<!-- 다운로드 안내 팝업 (웹 전용) -->
+<style>
+  #dlGuide {
+    position: fixed; top: 20px; right: 20px; z-index: 99999; pointer-events: none;
+    width: 340px; max-width: calc(100vw - 40px);
+    background: #1e1e1e; color: #f0f0f0;
+    border: 1px solid #ffd479; border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+    padding: 18px 20px; font-size: 14px; line-height: 1.6;
+    transform: translateX(400px); opacity: 0;
+    transition: transform .4s ease, opacity .4s ease;
+  }
+  #dlGuide.show { transform: translateX(0); opacity: 1; pointer-events: auto; }
+  #dlGuide h3 { margin: 0 0 10px; color: #ffd479; font-size: 16px; }
+  #dlGuide .step { margin: 10px 0; padding-left: 4px; }
+  #dlGuide .step b { color: #ffd479; }
+  #dlGuide .close {
+    position: absolute; top: 10px; right: 14px; cursor: pointer;
+    background: none; border: none; color: #aaa; font-size: 20px; line-height: 1;
+  }
+  #dlGuide .close:hover { color: #fff; }
+</style>
+<div id="dlGuide">
+  <button class="close" onclick="document.getElementById('dlGuide').classList.remove('show')">×</button>
+  <h3>💻 다운로드 안내</h3>
+  <div class="step">⬇ <b>다운로드가 시작되었어요!</b><br>
+    브라우저 <b>오른쪽 위 다운로드(↓) 아이콘</b>을 눌러 진행 상황을 확인하세요.</div>
+  <div class="step">🛡 처음 실행하면 파란색 <b>"Windows의 PC 보호"</b> 창이 떠요.<br>
+    → 작은 글씨 <b>[추가 정보]</b> 클릭<br>
+    → <b>[실행]</b> 버튼 누르기!<br>
+    <span style="color:#9ad;">(안전한 교육용 프로그램입니다)</span></div>
+</div>
+
 <script>
-  // exe(Electron)에서는 다운로드 버튼 숨김 — 웹에서만 표시
+  // exe(Electron)에서는 다운로드 버튼 숨김 — 웹에서만 표시 + 다운로드 안내 팝업
   document.addEventListener('DOMContentLoaded', function () {
     if (window.cubelink) {
       const b = document.getElementById('btn-download-exe');
       if (b) b.style.display = 'none';
     }
+
+    // 다운로드 버튼 클릭 시 안내 팝업 표시 (웹 전용)
+    const dlBtn = document.getElementById('btn-download-exe');
+    const guide = document.getElementById('dlGuide');
+    if (dlBtn && guide) {
+      dlBtn.addEventListener('click', function () {
+        guide.classList.add('show');
+        clearTimeout(window._dlGuideTimer);
+        window._dlGuideTimer = setTimeout(() => guide.classList.remove('show'), 12000);
+      });
+    }
   });
 </script>
-<!-- 시뮬 실행 중 3D 뷰 확대 유지 (정지 시 자동 축소) -->
-<style>
-  #robot-3d-view { transition: height .3s ease; }
-  #robot-3d-view.zoom-active { height: 480px !important; }
-</style>
-<script>
-(function () {
-  var view = document.getElementById('robot-3d-view');
-  if (!view) return;
-  var last = null;
-  setInterval(function () {
-    var running = !!window._runtimeRunning;
-    if (running === last) return;
-    last = running;
-    if (running) view.classList.add('zoom-active');
-    else view.classList.remove('zoom-active');
-    window.dispatchEvent(new Event('resize'));
-  }, 200);
-})();
-</script>
+<!-- 커스텀 확인 모달 (네이티브 confirm 대체: exe 포커스 문제 방지) -->
+<div id="confirmModal" style="display:none; position:fixed; inset:0; z-index:100000; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+  <div style="background:#1e1e1e; color:#f0f0f0; border:1px solid #ffd479; border-radius:12px; padding:24px 28px; max-width:420px; box-shadow:0 8px 30px rgba(0,0,0,.6);">
+    <div id="confirmModalMsg" style="font-size:15px; line-height:1.6; white-space:pre-line; margin-bottom:20px;"></div>
+    <div style="text-align:right;">
+      <button id="confirmModalCancel" style="padding:8px 18px; margin-right:8px; border-radius:8px; border:1px solid #666; background:#333; color:#ddd; cursor:pointer;">취소</button>
+      <button id="confirmModalOk" style="padding:8px 18px; border-radius:8px; border:none; background:#ffd479; color:#1e1e1e; font-weight:bold; cursor:pointer;">확인</button>
+    </div>
+  </div>
+</div>
+
 </body>
 
 </html>

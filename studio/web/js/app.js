@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CUBELINK Studio v2.7.2 - 메인 애플리케이션 제어 로직
  * 핵심 개선 (v2.7.1 → v2.7.2):
  *  - blocks.js 실제 필드명에 맞춰 evalValue 전면 보정
@@ -121,7 +121,6 @@
         return false;
       }
     },
-
     // ───── 🟡 중급과정 ─────
     {
       id: 'm4', level: 'intermediate',
@@ -1514,6 +1513,25 @@ async function sendServo(pin, angle) {
           window._userVars[name] = cur + delta;
           return;
         }
+        // ═══ 사용자 정의 함수 호출 (반환값 없음) ═══
+        if (t === 'procedures_callnoreturn') {
+          const funcName = b.getFieldValue('NAME');
+          const ws = window.workspace;
+          // 워크스페이스에서 같은 이름의 함수 정의 블록 찾기
+          const defBlock = ws.getAllBlocks(false).find(x =>
+            (x.type === 'procedures_defnoreturn' || x.type === 'procedures_defreturn') &&
+            x.getFieldValue('NAME') === funcName);
+          if (defBlock) {
+            const bodyArr = chainToArray(defBlock.getInputTargetBlock('STACK'));
+            for (const ib of bodyArr) {
+              if (!window._runtimeRunning) return;
+              await execBlock(ib);
+            }
+          } else {
+            appendSerialLog(`⚠ 함수 '${funcName}' 정의를 찾을 수 없음`);
+          }
+          return;
+        }
 
         // 알 수 없는 블록 → 조용히 무시
       } catch (blockErr) {
@@ -1605,26 +1623,32 @@ async function sendServo(pin, angle) {
         setTimeout(triggerResize, 50);
       }
     });
-    document.getElementById('btnResetProgress')?.addEventListener('click', () => {
+    document.getElementById('btnResetProgress')?.addEventListener('click', async () => {
       const hasProgress = MissionProgress.done.size > 0;
       const hasSavedWork = Object.keys(localStorage).some(k => k.startsWith('cubelink_ws_'));
       if (!hasProgress && !hasSavedWork) {
         alert('초기화할 내용이 없습니다.');
         return;
       }
-      if (confirm(`미션 완료 기록(${MissionProgress.done.size}개)과\n저장된 작업물을 모두 삭제합니다.\n계속하시겠습니까?`)) {
+      if (await window.customConfirm(`미션 완료 기록(${MissionProgress.done.size}개)과\n저장된 작업물을 모두 삭제합니다.\n계속하시겠습니까?`)) {
         MissionProgress.reset();
         WorkspaceStorage.clearAll();
-        alert('✓ 모두 초기화되었습니다.');
-        if (MissionProgress.current && workspace) {
+        if (workspace) {
           workspace.clear();
           try {
-            const initBlock = workspace.newBlock('arduino_setup_loop');
-            initBlock.initSvg();
-            initBlock.render();
-            initBlock.moveBy(20, 20);
-          } catch (e) {}
+            const xml = Blockly.utils.xml.textToDom(
+              '<xml><block type="arduino_setup_loop" x="20" y="20"></block></xml>'
+            );
+            Blockly.Xml.domToWorkspace(xml, workspace);
+          } catch (e) { console.error('초기화 재구성 오류:', e); }
         }
+        setTimeout(() => {
+          try {
+            window.focus();
+            if (window.cubelink && window.cubelink.focusWindow) window.cubelink.focusWindow();
+            if (workspace) { workspace.getParentSvg().focus(); triggerResize(); }
+          } catch (_) {}
+        }, 60);
       }
     });
 
@@ -1635,15 +1659,16 @@ async function sendServo(pin, angle) {
       // 1. 저장본 삭제
       WorkspaceStorage.clear(currentMissionId);
       // 2. workspace 초기화 (빈 setup/loop)
-      if (workspace) {
+        if (workspace) {
         workspace.clear();
         try {
-          const initBlock = workspace.newBlock('arduino_setup_loop');
-          initBlock.initSvg();
-          initBlock.render();
-          initBlock.moveBy(20, 20);
-        } catch (e) {}
+          const xml = Blockly.utils.xml.textToDom(
+            '<xml><block type="arduino_setup_loop" x="20" y="20"></block></xml>'
+          );
+          Blockly.Xml.domToWorkspace(xml, workspace);
+        } catch (e) { console.error('미션 재시작 오류:', e); }
       }
+
       // 3. MissionProgress state 초기화 (검증 상태 리셋)
       if (window.MissionProgress) {
         MissionProgress.state = {};
@@ -1796,6 +1821,27 @@ async function sendServo(pin, angle) {
 /* ============================================================
    CUBELINK Studio 대문(스플래시) 페이지 동작 제어
    ============================================================ */
+// 네이티브 confirm 대체 (exe에서 포커스 안 뺏기는 HTML 확인창)
+window.customConfirm = function(message) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('confirmModal');
+    const msg = document.getElementById('confirmModalMsg');
+    const okBtn = document.getElementById('confirmModalOk');
+    const cancelBtn = document.getElementById('confirmModalCancel');
+    if (!modal) { resolve(window.confirm(message)); return; }
+    msg.textContent = message;
+    modal.style.display = 'flex';
+    const cleanup = (result) => {
+      modal.style.display = 'none';
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      resolve(result);
+    };
+    okBtn.onclick = () => cleanup(true);
+    cancelBtn.onclick = () => cleanup(false);
+  });
+};
+
 function setupIntroPage() {
   const btnStart = document.getElementById('btn-intro-start');
   const introPage = document.getElementById('intro-page');
@@ -1811,6 +1857,76 @@ function setupIntroPage() {
       }, 400);
     });
   }
+    // ===== 로고 클릭 → 대문(인트로)으로 (웹에서만) =====
+  const brandLogo = document.getElementById('brandLogo');
+  if (brandLogo) {
+    brandLogo.addEventListener('click', () => {
+      if (window.cubelink) return;              // exe에서는 무시
+      const introPage = document.getElementById('intro-page');
+      if (!introPage) return;
+      introPage.style.display = '';
+      introPage.classList.remove('fade-out');
+    });
+  }
+
+  // ===== 안전 종료 버튼: 서보 안전 위치 정렬 후 연결 종료 =====
+  const btnSafe = document.getElementById('btnSafeShutdown');
+  if (btnSafe) {
+    btnSafe.addEventListener('click', async () => {
+      const port = window._serialPort;
+      if (!port || !port.writable) {
+        alert('로봇이 연결되어 있지 않습니다.');
+        return;
+      }
+      if (!confirm('서보를 안전 위치로 정렬한 뒤 연결을 종료합니다.\n계속할까요?')) return;
+      btnSafe.disabled = true;
+
+      // 안전 위치: 6·11번 90도, 9·10번 10도 (캘리브레이션 오프셋 반영)
+      const safePos = [ [6, 90], [11, 90], [9, 10], [10, 10] ];
+      let writer = null;
+      try {
+              writer = port.writable.getWriter();
+        const enc = new TextEncoder();
+        const SEC = 1;                       // 이동 시간 1초
+        const STEPS = 20;                    // 20단계로 나눠 부드럽게
+        // 현재 각도에서 목표 각도까지 단계별로 이동
+        for (const [pin, target] of safePos) {
+          const start = (window.servoAngles && window.servoAngles[pin] != null)
+                        ? window.servoAngles[pin] : 90;
+          const off = (window.getServoOffset ? window.getServoOffset(pin) : 0);
+          for (let i = 1; i <= STEPS; i++) {
+            const a = Math.round(start + (target - start) * (i / STEPS));
+            let realAngle = Math.round(a + off);
+            if (String(pin) === '11') realAngle = Math.max(50, Math.min(120, realAngle));
+            else realAngle = Math.max(0, Math.min(180, realAngle));
+            await writer.write(enc.encode(`S,${pin},${realAngle}\n`));
+            if (window.Sim) Sim.setServoAngle(pin, a);       // 시뮬도 같이 이동
+            if (window.servoAngles) window.servoAngles[pin] = a;
+            await new Promise(r => setTimeout(r, (SEC * 1000) / STEPS));  // 단계 간 간격
+          }
+        }
+        await new Promise(r => setTimeout(r, 300));          // 마지막 이동 완료 대기
+
+      } catch (e) {
+        console.warn('안전 종료 중 오류:', e);
+        alert('안전 종료 중 오류: ' + e.message);
+      } finally {
+        try { writer && writer.releaseLock(); } catch (_) {}  // ★ 반드시 락 해제
+      }
+
+      if (window.fullCleanup) await window.fullCleanup();     // 연결 종료
+      btnSafe.disabled = false;
+    });
+  }
+
+  // ===== 연결 상태에 따라 안전 종료 버튼 표시/숨김 =====
+  setInterval(() => {
+    const b = document.getElementById('btnSafeShutdown');
+    if (!b) return;
+    const connected = !!(window._serialPort && window._serialPort.writable);
+    b.style.display = connected ? '' : 'none';
+  }, 500);
+
 }
 
 // 브라우저가 HTML을 모두 읽은 후 안전하게 setupIntroPage를 실행하도록 연결

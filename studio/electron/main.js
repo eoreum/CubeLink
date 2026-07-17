@@ -1,9 +1,10 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
 
 let win, port, parser, lastPath = null;
+let reconnectTimer = null;
 // 창이 살아있을 때만 안전하게 메시지 전송
 function safeSend(channel, data) {
   if (win && !win.isDestroyed() && win.webContents && !win.webContents.isDestroyed()) {
@@ -13,6 +14,10 @@ function safeSend(channel, data) {
 
 
 function createWindow() {
+  const rendererRoot = app.isPackaged
+    ? path.join(process.resourcesPath, 'web')
+    : path.join(__dirname, '..', 'web');
+
   win = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -23,32 +28,91 @@ function createWindow() {
       nodeIntegration: false
     }
   });
-  win.maximize();         // 창을 최대 크기로
+  win.maximize();                    // 창을 최대 크기로 (전체화면)
   win.show();
-  win.loadFile(path.join(__dirname, 'index.html'));
+  win.focus();                       // 포커스 주기
+
+  // 실행 순간 맨 앞으로 가져오기 (그 후 일반 창처럼 동작)
+  win.setAlwaysOnTop(true);
+  win.setAlwaysOnTop(false);
+  win.moveTop();
+
+  // 캐시만 삭제 (학생 작업물 localStorage는 유지) 후 페이지 로드
+  session.defaultSession.clearCache().then(() => {
+    win.loadFile(path.join(rendererRoot, 'index.html'));
+  }).catch(() => {
+    win.loadFile(path.join(rendererRoot, 'index.html'));
+  });
+
+}
+
+function closeSerialPort() {
+  return new Promise((resolve) => {
+    if (!port || !port.isOpen) {
+      port = null;
+      parser = null;
+      resolve();
+      return;
+    }
+
+    const closingPort = port;
+    closingPort.close(() => {
+      if (port === closingPort) {
+        port = null;
+        parser = null;
+      }
+      resolve();
+    });
+  });
 }
 
 async function connectSerial(pathName) {
+  if (!pathName) return { ok: false, error: 'Serial port path is required.' };
+
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
+  lastPath = null;
+  await closeSerialPort();
   lastPath = pathName;
-  try {
-    if (port && port.isOpen) { try { await port.close(); } catch(_){} }
-    port = new SerialPort({ path: pathName, baudRate: 115200 });
-    parser = port.pipe(new ReadlineParser({ delimiter: '\n' }));
-    parser.on('data', d => safeSend('serial-data', d));
-    port.on('open',  () => safeSend('serial-status', 'open'));
-       port.on('close', () => {
-      safeSend('serial-status', 'closed');
-      // 전압 강하로 끊겨도 조용히 재시도 (단, 창이 살아있을 때만)
-      if (win && !win.isDestroyed() && lastPath) {
-        setTimeout(() => { if (lastPath) connectSerial(lastPath); }, 1000);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const nextPort = new SerialPort({ path: pathName, baudRate: 115200 });
+    port = nextPort;
+    parser = nextPort.pipe(new ReadlineParser({ delimiter: '\n' }));
+    parser.on('data', data => safeSend('serial-data', data));
+
+    nextPort.once('open', () => {
+      settled = true;
+      safeSend('serial-status', 'open');
+      resolve({ ok: true });
+    });
+
+    nextPort.on('error', (error) => {
+      safeSend('serial-status', 'error:' + error.message);
+      if (!settled) {
+        settled = true;
+        resolve({ ok: false, error: error.message });
       }
     });
 
-    port.on('error', e => safeSend('serial-status', 'error:' + e.message));
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
+    nextPort.on('close', () => {
+      safeSend('serial-status', 'closed');
+      if (port === nextPort) {
+        port = null;
+        parser = null;
+      }
+      if (win && !win.isDestroyed() && lastPath && !reconnectTimer) {
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          if (lastPath) connectSerial(lastPath);
+        }, 1000);
+      }
+    });
+  });
 }
 
 ipcMain.handle('list-ports', async () => {
@@ -56,24 +120,41 @@ ipcMain.handle('list-ports', async () => {
   catch(e) { return []; }
 });
 ipcMain.handle('connect', (_e, p) => connectSerial(p));
-
+ipcMain.handle('focus-window', () => {
+  if (win && !win.isDestroyed()) {
+    win.setAlwaysOnTop(true);
+    win.focus();
+    win.setAlwaysOnTop(false);
+  }
+});
 ipcMain.handle('write', (_e, data) => {
   return new Promise((resolve) => {
-    if (port && port.isOpen) port.write(data, () => resolve({ ok: true }));
-    else resolve({ ok: false });
+    if (!port || !port.isOpen) {
+      resolve({ ok: false, error: 'Serial port is not open.' });
+      return;
+    }
+    port.write(data, (error) => {
+      if (error) resolve({ ok: false, error: error.message });
+      else resolve({ ok: true });
+    });
   });
 });
 
 ipcMain.handle('disconnect', async () => {
-  lastPath = null;  // 자동 재연결 중단
-  try { if (port && port.isOpen) await port.close(); } catch(_) {}
+  lastPath = null;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  await closeSerialPort();
   return { ok: true };
 });
 
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => {
-  lastPath = null;                          // 재연결 중단
+  lastPath = null;
+  if (reconnectTimer) clearTimeout(reconnectTimer);
   try { if (port && port.isOpen) port.close(); } catch (_) {}
   app.quit();
 });

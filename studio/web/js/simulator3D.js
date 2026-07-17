@@ -281,6 +281,10 @@
     const a = parseFloat(angle);
     if (isNaN(a)) return;
 
+    // 시뮬이 움직일 때만 3D 화면 확대
+    if (window.triggerRobotZoom) window.triggerRobotZoom();
+
+
     const group = joints[pId];
     const rad = (a - 90) * Math.PI / 180;
 

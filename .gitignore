@@ -26,4 +26,8 @@ Desktop.ini
 *.tmp
 *.temp
 *.bak
+*.broken
+*.backup*
+*.fix*
+*.cc_*
 *~
