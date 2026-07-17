@@ -1,0 +1,46 @@
+{
+  "name": "cubelinkelectron",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "serialport": "^13.0.0"
+  },
+    "build": {
+    "appId": "com.cubelink.studio",
+    "productName": "Cubelink_Studio",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "manifest.json",
+      "sw.js",
+      "css/**/*",
+      "js/**/*",
+      "libs/**/*",
+        "models/**/*",
+      "*.png"
+    ],
+    "win": {
+      "target": "portable"
+    },
+    "portable": {
+      "artifactName": "Cubelink_Studio.exe"
+    }
+  }
+
+}
