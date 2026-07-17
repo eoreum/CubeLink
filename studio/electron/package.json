@@ -17,6 +17,7 @@
     "electron-builder": "^26.15.3"
   },
   "dependencies": {
+    "@serialport/parser-readline": "^13.0.0",
     "serialport": "^13.0.0"
   },
     "build": {
@@ -25,15 +26,18 @@
     "asar": true,
     "files": [
       "main.js",
-      "preload.js",
-      "index.html",
-      "manifest.json",
-      "sw.js",
-      "css/**/*",
-      "js/**/*",
-      "libs/**/*",
-        "models/**/*",
-      "*.png"
+      "preload.js"
+    ],
+    "extraResources": [
+      {
+        "from": "../web",
+        "to": "web",
+        "filter": [
+          "**/*",
+          "!index_backup_*",
+          "!js/*.broken"
+        ]
+      }
     ],
     "win": {
       "target": "portable"

@@ -25,7 +25,10 @@ function createWindow() {
   });
   win.maximize();         // 창을 최대 크기로
   win.show();
-  win.loadFile(path.join(__dirname, 'index.html'));
+  const webRoot = app.isPackaged
+    ? path.join(process.resourcesPath, 'web')
+    : path.join(__dirname, '..', 'web');
+  win.loadFile(path.join(webRoot, 'index.html'));
 }
 
 async function connectSerial(pathName) {

@@ -20,7 +20,7 @@ by Eoreum
 - assets
 - test
 - release
-- ai
+- AI
 
 ---
 Copyright © Eoreum

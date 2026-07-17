@@ -19,22 +19,22 @@
   <!-- SEO -->
   <meta name="description" content="CUBELINK Studio - 학생을 위한 무료 로봇팔 블록 코딩 학습 도구. 9단계 미션, 3D 시뮬레이터, 아두이노 실시간 제어를 한 곳에서.">
   <meta name="keywords" content="CUBELINK, 큐브링크, 로봇팔, 블록코딩, 아두이노, 교육, 학생, Blockly, 무료, 코딩 학습">
-  <meta name="author" content="tjind">
+  <meta name="author" content="Eoreum">
   <meta name="robots" content="index, follow">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="CUBELINK Studio - 로봇팔 블록 코딩 학습 플랫폼">
   <meta property="og:description" content="9단계 미션으로 배우는 아두이노 로봇팔 코딩. 블록 코딩 + 3D 시뮬레이터 + 실시간 제어.">
-  <meta property="og:url" content="https://tjind.github.io/Cubelink-studio/">
-  <meta property="og:image" content="https://tjind.github.io/Cubelink-studio/og-image.png">
+  <meta property="og:url" content="https://eoreum.github.io/CubeLink/">
+  <meta property="og:image" content="https://eoreum.github.io/CubeLink/og-image.png">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="CUBELINK Studio">
   <meta name="twitter:description" content="학생용 무료 로봇팔 블록 코딩 학습 도구">
 
-  <link rel="canonical" href="https://tjind.github.io/Cubelink-studio/">
+  <link rel="canonical" href="https://eoreum.github.io/CubeLink/">
 
   <script src="libs/blockly/blockly.min.js"></script>
   <script src="libs/blockly/ko.js"></script>
@@ -70,7 +70,7 @@
 <header>
   <button class="btn hamburger-btn" id="btnHamburger" title="미션 목록 열기/닫기">☰</button>
   <div class="brand">
-    <div class="brand-logo">EOROUM</div>
+    <div class="brand-logo">Eoreum</div>
     <div class="brand-title">CUBELINK STUDIO<span class="brand-version">v2.9.2</span></div>
   </div>
 
@@ -590,7 +590,7 @@ function diagnoseEnvironment() {
   if (window.cubelink) return issues;   // ★ 추가: Electron 앱에서는 진단 배너 생략
   const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   if (location.protocol !== 'https:' && !isLocal) {
-    issues.push({ severity:'fatal', msg:'⚠️ HTTPS 주소가 아닙니다. https://tjind.github.io/Cubelink-studio/ 로 접속하세요.' });
+    issues.push({ severity:'fatal', msg:'⚠️ HTTPS 주소가 아닙니다. https://eoreum.github.io/CubeLink/ 로 접속하세요.' });
   }
   if (!('serial' in navigator)) {
     issues.push({ severity:'fatal', msg:'⚠️ 이 브라우저는 로봇 연결을 지원하지 않습니다. Chrome 또는 Edge(데스크톱/노트북/Chromebook)를 사용하세요.' });

@@ -2,6 +2,11 @@
 
 ## 2026-07-18
 
+- 인트로 화면의 다운로드 링크가 Eoreum/CubeLink 최신 Release 실행 파일을 가리키는지 확인
+- 잘못된 `EOROUM` 표기와 기존 `tjind` 웹 주소를 Eoreum 기준으로 수정
+- Electron 개발 실행 시 `studio/web`을 직접 불러오도록 경로 수정
+- Electron 패키징 시 `studio/web`을 실행 파일 리소스에 포함하도록 설정
+- 누락된 `@serialport/parser-readline` 의존성 추가
 - 기존 `ai` 디렉터리를 공식 `AI` 디렉터리로 정리
 - 새 대화에서도 프로젝트를 이어갈 수 있도록 AI 작업 문서 추가
 - Eoreum/CubeLink 저장소와 Electron 기반 CubeLink Studio의 현재 상태 기록
@@ -12,4 +17,3 @@
 - `eoreum/CubeLink` GitHub 저장소 생성
 - 로컬 저장소와 GitHub 연결
 - Electron 기반 CubeLink Studio 소스 추가 및 푸시
-
