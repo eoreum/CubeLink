@@ -1172,10 +1172,19 @@ checkGraduation() {
       if (!confirm("로봇이 연결되지 않았습니다. 3D 시뮬레이션만 실행할까요?")) return;
     }
 
+    if (useSerial && (!window._cubeSafety || !window._cubeSafety.initialized)) {
+      alert('안전 초기화가 완료되지 않았습니다. 로봇 연결 및 초기화를 먼저 완료하세요.');
+      return;
+    }
+
 
     window._runtimeRunning = true;
 
-    const writer = useSerial ? port.writable.getWriter() : null;
+    const writer = useSerial
+      ? await (window.acquireSerialWriter
+          ? window.acquireSerialWriter(port)
+          : Promise.resolve(port.writable.getWriter()))
+      : null;
     const enc = new TextEncoder();
     const btnRT = document.getElementById(simOnly ? 'btnSimStart' : 'btnRunRealtime');
     const originalText = btnRT ? btnRT.textContent : '';
@@ -1737,10 +1746,15 @@ async function sendServo(pin, angle) {
     const mainMsg = isRealtime
       ? '▶ 실물 로봇 실행 중입니다.<br>⏹ 정지 후 편집하세요.'
       : '🎮 시뮬레이션 실행 중입니다.<br>⏹ 정지 후 편집하세요.';
-    const targets = [
-      { el: document.querySelector('.panel-center'), compact: false, msg: mainMsg },
-      { el: document.querySelector('.panel-left'),   compact: true,  msg: '🔒 실행 중' }
-    ];
+    // Physical real-time mode stays live-editable so servo angle/time fields
+    // can be tuned while observing the robot. Simulation playback keeps the
+    // original workspace lock.
+    const targets = isRealtime
+      ? [{ el: document.querySelector('.panel-left'), compact: true, msg: '🔒 실행 중' }]
+      : [
+          { el: document.querySelector('.panel-center'), compact: false, msg: mainMsg },
+          { el: document.querySelector('.panel-left'),   compact: true,  msg: '🔒 실행 중' }
+        ];
     targets.forEach(t => {
       if (!t.el) return;
       if (getComputedStyle(t.el).position === 'static') {
@@ -1880,12 +1894,26 @@ function setupIntroPage() {
       }
       if (!confirm('서보를 안전 위치로 정렬한 뒤 연결을 종료합니다.\n계속할까요?')) return;
       btnSafe.disabled = true;
+      let parkedConfirmed = false;
+
+      // 실시간 실행이 writer를 사용 중이면 먼저 중지하고 락 해제를 기다린다.
+      window._runtimeRunning = false;
+      for (let i = 0; i < 20 && port.writable.locked; i++) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+      if (port.writable.locked) {
+        alert('실시간 실행을 완전히 중지하지 못했습니다. 잠시 후 다시 시도하세요.');
+        btnSafe.disabled = false;
+        return;
+      }
 
       // 안전 위치: 6·11번 90도, 9·10번 10도 (캘리브레이션 오프셋 반영)
       const safePos = [ [6, 90], [11, 90], [9, 10], [10, 10] ];
       let writer = null;
       try {
-              writer = port.writable.getWriter();
+              writer = await (window.acquireSerialWriter
+                ? window.acquireSerialWriter(port)
+                : Promise.resolve(port.writable.getWriter()));
         const enc = new TextEncoder();
         const SEC = 1;                       // 이동 시간 1초
         const STEPS = 20;                    // 20단계로 나눠 부드럽게
@@ -1907,6 +1935,14 @@ function setupIntroPage() {
         }
         await new Promise(r => setTimeout(r, 300));          // 마지막 이동 완료 대기
 
+        // 펌웨어가 보관 자세를 재확인하고 EEPROM에 SAFE를 기록한 뒤 PARKED로 응답한다.
+        const parked = window.waitForBoardResponse('PARKED', 30000);
+        await writer.write(enc.encode('K\n'));
+        writer.releaseLock();
+        writer = null;
+        await parked;
+        parkedConfirmed = true;
+
       } catch (e) {
         console.warn('안전 종료 중 오류:', e);
         alert('안전 종료 중 오류: ' + e.message);
@@ -1914,7 +1950,7 @@ function setupIntroPage() {
         try { writer && writer.releaseLock(); } catch (_) {}  // ★ 반드시 락 해제
       }
 
-      if (window.fullCleanup) await window.fullCleanup();     // 연결 종료
+      if (parkedConfirmed && window.fullCleanup) await window.fullCleanup();
       btnSafe.disabled = false;
     });
   }

@@ -42,10 +42,14 @@
       }
     ],
     "win": {
-      "target": "portable",
+      "target": "nsis",
       "icon": "icon.ico"
     },
-    "portable": {
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
       "artifactName": "Cubelink_Studio.exe"
     }
   }

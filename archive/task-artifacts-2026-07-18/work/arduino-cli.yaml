@@ -1,0 +1,6 @@
+board_manager:
+  additional_urls: []
+directories:
+  data: C:\Users\dscom\AppData\Local\Arduino15
+  downloads: C:\Users\dscom\AppData\Local\Arduino15\staging
+  user: C:\Users\dscom\Documents\Arduino

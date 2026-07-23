@@ -5,7 +5,7 @@
  * 업데이트 시 CACHE_VERSION 값을 올려야 사용자에게 새 버전이 적용됩니다.
  */
 
-const CACHE_VERSION = 'cubelink-v3.4.3';
+const CACHE_VERSION = 'cubelink-v3.4.3-serial1';
 
 // 앱 설치 시 미리 받아둘 핵심 파일 목록
 const PRECACHE_URLS = [

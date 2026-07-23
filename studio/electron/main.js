@@ -3,8 +3,13 @@ const path = require('path');
 const { SerialPort } = require('serialport');
 const { ReadlineParser } = require('@serialport/parser-readline');
 
+// Some classroom PCs cannot start Electron's GPU process because of their
+// graphics driver/runtime configuration. Use Chromium's software renderer so
+// the Studio still opens reliably; the 3D simulator remains available.
+app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+
 let win, port, parser, lastPath = null;
-let reconnectTimer = null;
 // 창이 살아있을 때만 안전하게 메시지 전송
 function safeSend(channel, data) {
   if (win && !win.isDestroyed() && win.webContents && !win.webContents.isDestroyed()) {
@@ -69,18 +74,13 @@ function closeSerialPort() {
 async function connectSerial(pathName) {
   if (!pathName) return { ok: false, error: 'Serial port path is required.' };
 
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-
   lastPath = null;
   await closeSerialPort();
   lastPath = pathName;
 
   return new Promise((resolve) => {
     let settled = false;
-    const nextPort = new SerialPort({ path: pathName, baudRate: 115200 });
+    const nextPort = new SerialPort({ path: pathName, baudRate: 115200, autoOpen: false });
     port = nextPort;
     parser = nextPort.pipe(new ReadlineParser({ delimiter: '\n' }));
     parser.on('data', data => safeSend('serial-data', data));
@@ -105,11 +105,13 @@ async function connectSerial(pathName) {
         port = null;
         parser = null;
       }
-      if (win && !win.isDestroyed() && lastPath && !reconnectTimer) {
-        reconnectTimer = setTimeout(() => {
-          reconnectTimer = null;
-          if (lastPath) connectSerial(lastPath);
-        }, 1000);
+    });
+
+    nextPort.open((error) => {
+      if (error && !settled) {
+        settled = true;
+        safeSend('serial-status', 'error:' + error.message);
+        resolve({ ok: false, error: error.message });
       }
     });
   });
@@ -134,18 +136,20 @@ ipcMain.handle('write', (_e, data) => {
       return;
     }
     port.write(data, (error) => {
-      if (error) resolve({ ok: false, error: error.message });
-      else resolve({ ok: true });
+      if (error) {
+        resolve({ ok: false, error: error.message });
+        return;
+      }
+      port.drain((drainError) => {
+        if (drainError) resolve({ ok: false, error: drainError.message });
+        else resolve({ ok: true });
+      });
     });
   });
 });
 
 ipcMain.handle('disconnect', async () => {
   lastPath = null;
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
   await closeSerialPort();
   return { ok: true };
 });
@@ -154,7 +158,6 @@ ipcMain.handle('disconnect', async () => {
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => {
   lastPath = null;
-  if (reconnectTimer) clearTimeout(reconnectTimer);
   try { if (port && port.isOpen) port.close(); } catch (_) {}
   app.quit();
 });

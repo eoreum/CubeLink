@@ -203,10 +203,13 @@
 
         // writable: 웹앱이 getWriter().write() 하면 cubelink.write로 전송
         writableStream = new WritableStream({
-          write(chunk) {
+          async write(chunk) {
             // chunk는 Uint8Array → 문자열로 복원
             const text = new TextDecoder().decode(chunk);
-            return window.cubelink.write(text);
+            const result = await window.cubelink.write(text);
+            if (!result || !result.ok) {
+              throw new Error(result && result.error ? result.error : 'Serial write failed.');
+            }
           }
         });
       },
@@ -232,7 +235,11 @@
       addEventListener: (t, cb) => evtTarget.addEventListener(t, cb),
       removeEventListener: (t, cb) => evtTarget.removeEventListener(t, cb),
 
-      getInfo: () => ({ usbVendorId: 0x1a86, usbProductId: 0x7523 }) // CH340
+      getInfo: () => ({
+        usbVendorId: portInfo.usbVendorId || 0x1a86,
+        usbProductId: portInfo.usbProductId || 0x7523,
+        portPath: portInfo._path || ''
+      })
     };
 
     return port;
@@ -247,24 +254,36 @@
     // 승인된 포트 목록 → Electron은 실제 COM 포트 목록 반환
     async getPorts() {
       const list = await window.cubelink.listPorts();
-      return (list || []).map((p) => makePort({ _path: p.path }));
+      return (list || []).map((p) => makePort({
+        _path: p.path,
+        usbVendorId: p.vendorId ? parseInt(p.vendorId, 16) : undefined,
+        usbProductId: p.productId ? parseInt(p.productId, 16) : undefined
+      }));
     },
 
     // 포트 선택 → Electron은 첫 번째(또는 CH340) 포트 자동 선택
-    async requestPort() {
+    async requestPort(options = {}) {
       const list = await window.cubelink.listPorts();
       if (!list || list.length === 0) {
         const e = new Error('No port selected by the user.');
         e.name = 'NotFoundError';
         throw e;
       }
-      // CH340(1a86) 우선, 없으면 첫 번째
+      const requestedPath = options && options.path;
+      const requested = requestedPath
+        ? list.find((p) => String(p.path).toLowerCase() === String(requestedPath).toLowerCase())
+        : null;
+      // 명시적으로 고른 포트를 우선하고, 구버전 호출은 CH340을 우선한다.
       const ch340 = list.find((p) =>
         (p.vendorId && p.vendorId.toLowerCase() === '1a86') ||
         (p.manufacturer && /wch|ch340/i.test(p.manufacturer))
       );
-      const chosen = ch340 || list[0];
-      return makePort({ _path: chosen.path });
+      const chosen = requested || ch340 || list[0];
+      return makePort({
+        _path: chosen.path,
+        usbVendorId: chosen.vendorId ? parseInt(chosen.vendorId, 16) : undefined,
+        usbProductId: chosen.productId ? parseInt(chosen.productId, 16) : undefined
+      });
     },
 
     addEventListener: (t, cb) => serialEvtTarget.addEventListener(t, cb),
