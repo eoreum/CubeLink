@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://eoreum.github.io/CubeLink/sitemap.xml

@@ -1,0 +1,663 @@
+:root {
+  --gold: #D4AF37; 
+  --gold-soft: #B8941F; 
+  --gold-glow: rgba(212, 175, 55, 0.35);
+  --black: #0A0A0A; 
+  --charcoal: #1A1A1A; 
+  --charcoal-2: #242424;
+  --warm-white: #FFF8E7; 
+  --text-mute: #C8B98A;
+  --danger: #d9534f; 
+  --success: #5cb85c; 
+  --info: #3498db;
+}
+
+/* ════════════════════════════════════════════════════════════
+   v2.8.1 — 화면 자동 맞춤 베이스 (Auto-Fit Viewport)
+   브라우저 창에 정확히 맞도록 전체 레이아웃을 Flex로 구성
+   ════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { 
+  margin: 0; padding: 0; 
+  height: 100vh;
+  height: 100dvh;            /* 모던 브라우저 — 동적 뷰포트 높이 */
+  font-family: 'Segoe UI', 'Pretendard', 'Malgun Gothic', sans-serif; 
+  background: var(--black); color: var(--warm-white); 
+  overflow: hidden; 
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 헤더 영역 */
+header { 
+  height: 56px; 
+  background: linear-gradient(90deg, #000, var(--charcoal), #000); 
+  border-bottom: 1px solid var(--gold); 
+  display: flex; align-items: center; justify-content: space-between; 
+  padding: 0 24px; flex: 0 0 auto;
+}
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand-logo { 
+  width: 36px; height: 36px; 
+  background: linear-gradient(135deg, var(--gold), #8a6d1c); 
+  border-radius: 8px; display: flex; align-items: center; justify-content: center; 
+  color: #000; font-weight: 900; font-size: 14px; flex-shrink: 0; 
+}
+.brand-title { font-size: 18px; font-weight: 700; letter-spacing: 1px; color: var(--gold); white-space: nowrap; }
+.brand-version { font-size: 11px; color: var(--text-mute); margin-left: 6px; }
+.header-actions { display: flex; gap: 10px; flex-shrink: 0; align-items: center; }
+.progress-badge { padding: 6px 12px; background: var(--charcoal-2); border: 1px solid var(--gold); border-radius: 20px; font-size: 12px; color: var(--gold); font-weight: 700; }
+
+/* 공통 버튼 */
+button.btn { 
+  background: var(--charcoal-2); color: var(--warm-white); 
+  border: 1px solid var(--gold-soft); padding: 7px 16px; border-radius: 6px; 
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; 
+}
+button.btn:hover:not(:disabled) { background: var(--gold); color: #000; }
+button.btn.primary { background: linear-gradient(135deg, var(--gold), var(--gold-soft)); color: #000; }
+button.btn:disabled { cursor: wait; }
+
+/* 졸업 배너 (있을 때만 표시 — 아래 졸업 모드 규칙 참조) */
+.graduation-banner { 
+  display: none; flex: 0 0 auto;
+  padding: 14px 20px; background: linear-gradient(90deg, rgba(212,175,55,0.15), rgba(92,184,92,0.15)); 
+  border-bottom: 1px solid var(--gold); color: var(--gold); font-weight: 700; 
+  text-align: center; font-size: 14px; letter-spacing: 0.5px; 
+  animation: glow 2.4s ease-in-out infinite; 
+}
+body.graduated .graduation-banner { display: block; }
+@keyframes glow { 
+  0%, 100% { box-shadow: inset 0 0 12px rgba(212,175,55,0.2); } 
+  50% { box-shadow: inset 0 0 24px rgba(212,175,55,0.5); } 
+}
+
+/* ════════════════════════════════════════════════════════════
+   메인 레이아웃 — 남은 공간 전체를 차지
+   고정 height 대신 flex로 자동 맞춤
+   ════════════════════════════════════════════════════════════ */
+.layout { 
+  display: grid; 
+  grid-template-columns: 280px 1fr 420px; 
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 좌측 미션 패널 */
+.panel-left { 
+  background: var(--charcoal); border-right: 1px solid #333; 
+  display: flex; flex-direction: column; 
+  min-height: 0;
+  overflow: hidden; 
+}
+.panel-header { 
+  padding: 14px 18px; background: linear-gradient(90deg, var(--gold-soft), var(--gold)); 
+  color: #000; font-weight: 700; font-size: 14px; flex-shrink: 0;
+}
+#missionList { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
+
+.mission-item { display: flex; gap: 10px; padding: 12px 18px; cursor: pointer; border-left: 3px solid transparent; color: var(--warm-white); }
+.mission-item:hover { background: var(--charcoal-2); border-left-color: var(--gold); }
+.mission-item.active { background: var(--charcoal-2); border-left-color: var(--gold); box-shadow: inset 0 0 16px var(--gold-glow); }
+.mission-item strong { color: var(--gold); font-size: 14px; }
+.mission-item small { color: #D9C98A; font-size: 12px; line-height: 1.4; display: block; margin-top: 3px; }
+.mission-num { width: 26px; height: 26px; border-radius: 50%; background: var(--black); border: 1px solid var(--gold); display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--gold); font-weight: 700; flex-shrink: 0; }
+
+/* 미션 상태 스타일 */
+.mission-item.done { background: linear-gradient(90deg, rgba(92,184,92,0.12), transparent); border-left-color: #5cb85c; }
+.mission-item.done .mission-num { background: #5cb85c; border-color: #5cb85c; color: #000; }
+.mission-item.done strong { color: #a8e6a8; }
+.mission-item.done strong::after { content: " ✓"; color: #5cb85c; }
+.mission-num.in-progress { background: var(--gold); color: #000; animation: pulse 1.4s infinite; }
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--gold-glow); }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+
+/* 완료 알림 팝업 */
+.mission-toast { 
+  position: fixed; top: 80px; right: 30px; 
+  background: linear-gradient(135deg, #5cb85c, #3d8b3d); color: #fff; 
+  padding: 14px 22px; border-radius: 10px; border: 2px solid #a8e6a8; 
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5); font-weight: 700; z-index: 2000; 
+  opacity: 0; transform: translateY(-20px); transition: all 0.4s; pointer-events: none; 
+}
+.mission-toast.show { opacity: 1; transform: translateY(0); }
+
+/* ════════════════════════════════════════════════════════════
+   중앙 코딩 영역 — Blockly가 부모 높이에 정확히 맞춰짐
+   ════════════════════════════════════════════════════════════ */
+.panel-center { 
+  display: flex; flex-direction: column; 
+  background: #0d0d0d; 
+  min-width: 0; min-height: 0;
+  overflow: hidden;
+}
+.mission-banner { 
+  padding: 10px 16px; background: linear-gradient(90deg, var(--charcoal-2), var(--charcoal)); 
+  border-bottom: 1px solid var(--gold-soft); 
+  display: flex; justify-content: space-between; align-items: center; 
+  flex: 0 0 auto;
+}
+.mission-banner .title { color: var(--gold); font-weight: 700; font-size: 14px; }
+.mission-banner .desc { color: #E8D9A8; font-size: 13px; margin-top: 4px; }
+.center-toolbar { 
+  height: 42px; padding: 0 16px; 
+  background: var(--charcoal); border-bottom: 1px solid var(--gold-soft); 
+  display: flex; align-items: center; gap: 8px; 
+  flex: 0 0 auto;
+}
+
+/* blocklyArea가 부모(panel-center)의 남은 공간을 자동으로 차지 */
+#blocklyArea {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  position: relative;
+}
+
+#blocklyDiv {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ════════════════════════════════════════════════════════════
+   우측 패널 및 탭
+   ════════════════════════════════════════════════════════════ */
+.panel-right { 
+  background: var(--charcoal); 
+  display: flex; flex-direction: column; 
+  border-left: 1px solid #333; 
+  min-width: 0; min-height: 0;
+  overflow: hidden;
+}
+.tabs { 
+  display: flex; background: var(--black); 
+  border-bottom: 1px solid var(--gold-soft); 
+  flex: 0 0 auto; 
+}
+.tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; color: #A89968; font-size: 12px; font-weight: 600; border-bottom: 2px solid transparent; }
+.tab.active { color: var(--gold); border-bottom-color: var(--gold); background: var(--charcoal-2); }
+.tab-body { 
+  flex: 1 1 auto; 
+  overflow-y: auto; 
+  display: none; padding: 14px; 
+  min-height: 0;
+}
+.tab-body.active { display: block; }
+#hintPanel { color: #F0E4B8; font-size: 14px; line-height: 1.6; }
+pre.code-out { background: #050505; color: #c8c8c8; padding: 14px; border-radius: 6px; border: 1px solid #2a2a2a; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; margin: 0; }
+
+/* 시뮬레이터 내부 UI 컴팩트화 — max-height 제거(부모 flex로 자동 조정) */
+.tab-body[data-body="sim"] { padding: 8px 10px !important; overflow-y: auto !important; }
+.sim-controls { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.sim-controls .btn { padding: 5px 12px !important; font-size: 12px; white-space: nowrap; }
+.sim-status { margin-left: auto; font-size: 11px; color: var(--text-mute); font-weight: 700; white-space: nowrap; }
+.sim-status.running { color: var(--success); }
+
+.sim-stage { background: radial-gradient(circle at center, #1c1c1c, #050505); border: 1px solid var(--gold-soft); border-radius: 10px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; }
+.sim-stage .sim-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 3px 6px; }
+.sim-label { color: #E8D9A8; font-size: 13px; }
+.led { width: 34px; height: 34px; border-radius: 50%; background: #222; border: 2px solid #444; transition: 0.2s; flex-shrink: 0; }
+.led.on { background: #ff4444; box-shadow: 0 0 18px #ff4444; border-color: #ff8888; }
+
+/* 3D 시뮬레이터 — 작은 화면에서도 자동 축소 */
+#robot-3d-view {
+  width: 100%;
+  height: clamp(180px, 28vh, 280px) !important;
+  max-height: 280px;
+}
+
+/* 4축 서보 미니 표시 */
+.servo-mini { background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 4px 6px; font-size: 11px; }
+.servo-mini-label { color: #E8D9A8; font-size: 10px; font-weight: 600; margin-bottom: 2px; }
+.servo-mini-bar { height: 6px; background: #0a0a0a; border-radius: 3px; overflow: hidden; margin: 2px 0; }
+.servo-mini-fill { height: 100%; background: linear-gradient(90deg, var(--gold-soft), var(--gold)); width: 50%; transition: width 0.2s; }
+.servo-mini-val { color: var(--gold); font-weight: 700; text-align: right; font-size: 11px; }
+
+/* 조이스틱 및 패드 패널 */
+.joy-pad { width: 80px; height: 80px; background: #1a1a1a; border: 2px solid var(--gold); border-radius: 50%; position: relative; flex-shrink: 0; cursor: grab; touch-action: none; user-select: none; }
+.joy-pad:active { cursor: grabbing; }
+.joy-pad::before, .joy-pad::after { content: ''; position: absolute; background: rgba(212,175,55,0.2); pointer-events: none; }
+.joy-pad::before { left: 50%; top: 8%; bottom: 8%; width: 1px; transform: translateX(-50%); }
+.joy-pad::after { top: 50%; left: 8%; right: 8%; height: 1px; transform: translateY(-50%); }
+.joy-dot { width: 18px; height: 18px; background: var(--gold); border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 8px var(--gold); pointer-events: none; transition: transform 0.05s linear; }
+#btnD2Sim { position: relative !important; z-index: 100 !important; pointer-events: auto !important; }
+
+/* ════════════════════════════════════════════════════════════
+   하단 시리얼 모니터 — 좌측 패널 하단에 고정
+   ════════════════════════════════════════════════════════════ */
+.serial-monitor-bar { 
+  background: #000; border-top: 2px solid var(--gold-soft); 
+  display: flex; flex-direction: column; 
+  flex: 0 0 auto;
+  height: 240px; transition: height 0.3s; 
+}
+.serial-monitor-bar.collapsed { height: 32px; }
+.serial-monitor-bar.collapsed .serial-monitor-body { display: none; }
+.serial-monitor-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: linear-gradient(90deg, var(--charcoal), var(--charcoal-2)); color: var(--gold); font-size: 12px; font-weight: 700; border-bottom: 1px solid #333; flex-shrink: 0; }
+.serial-monitor-header > div { display: flex; gap: 4px; }
+.serial-monitor-body { flex: 1 1 auto; overflow-y: auto; padding: 8px 12px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; color: #9ad29a; white-space: pre-wrap; word-break: break-all; background: #050505; line-height: 1.5; min-height: 0; }
+
+/* 미션 그룹 아코디언 */
+.mission-group { border-bottom: 1px solid #2a2a2a; }
+.mission-group-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; cursor: pointer; background: linear-gradient(90deg, var(--charcoal-2), var(--charcoal)); border-left: 4px solid var(--gold); transition: all 0.2s; user-select: none; }
+.mission-group-header:hover { background: var(--charcoal-2); box-shadow: inset 0 0 12px var(--gold-glow); }
+.mission-group-header .group-title { display: flex; align-items: center; gap: 10px; color: var(--gold); font-weight: 700; font-size: 14px; letter-spacing: 0.5px; }
+.mission-group-header .group-badge { font-size: 11px; color: var(--text-mute); background: var(--black); padding: 3px 10px; border-radius: 12px; border: 1px solid var(--gold-soft); }
+.mission-group-header .toggle-arrow { color: var(--gold); font-size: 12px; transition: transform 0.25s; }
+.mission-group.collapsed .toggle-arrow { transform: rotate(-90deg); }
+.mission-group-body { max-height: 1000px; overflow: hidden; transition: max-height 0.3s ease-in-out; }
+.mission-group.collapsed .mission-group-body { max-height: 0; }
+
+.mission-group[data-level="basic"] .mission-group-header { border-left-color: #5cb85c; }
+.mission-group[data-level="basic"] .group-title { color: #a8e6a8; }
+.mission-group[data-level="intermediate"] .mission-group-header { border-left-color: #f0ad4e; }
+.mission-group[data-level="intermediate"] .group-title { color: #ffd58a; }
+.mission-group[data-level="advanced"] .mission-group-header { border-left-color: #d9534f; }
+.mission-group[data-level="advanced"] .group-title { color: #f5a8a8; }
+
+/* 업로드 모달창 */
+.modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; }
+.modal-bg.show { display: flex; }
+.modal { background: linear-gradient(135deg, var(--charcoal-2), var(--charcoal)); border: 2px solid var(--gold); border-radius: 16px; padding: 36px; text-align: center; max-width: 520px; width: 90%; }
+.upload-steps { text-align: left; background: #000; padding: 16px; border-radius: 8px; margin: 16px 0; border: 1px solid #2a2a2a; }
+.upload-step { display: flex; gap: 12px; padding: 8px 0; color: var(--text-mute); font-size: 13px; }
+.upload-step.active { color: var(--warm-white); }
+.upload-step.done { color: var(--success); }
+.step-icon { width: 24px; height: 24px; border-radius: 50%; background: #222; display: flex; align-items: center; justify-content: center; font-size: 12px; border: 1px solid #444; }
+.progress-bar { height: 8px; background: #222; border-radius: 4px; overflow: hidden; margin: 12px 0; }
+.progress-fill { height: 100%; background: var(--gold); width: 0%; transition: width 0.3s; }
+.upload-detail { background: #000; padding: 10px; font-size: 11px; color: #aaa; text-align: left; max-height: 120px; overflow-y: auto; border-radius: 6px; }
+
+/* ════════════════════════════════════════════════════════════
+   🎓 졸업 모드 — 시리얼 모니터를 명령어 블록 아래로 이동
+   ════════════════════════════════════════════════════════════ */
+body.graduated .panel-left { display: none; }
+body.graduated .tab[data-tab="hint"], 
+body.graduated .tab-body[data-body="hint"] { display: none; }
+body.graduated .layout { grid-template-columns: 1fr 420px; }
+
+body.graduated #serialMonitorBar {
+  border-top: 2px solid var(--gold-soft);
+  height: 200px;
+  flex: 0 0 auto;
+}
+body.graduated #serialMonitorBar.collapsed { height: 36px; }
+
+/* ════════════════════════════════════════════════════════════
+   🎨 Blockly 카테고리 블랙&골드 + 메뉴 수직 정렬 (정리)
+   ════════════════════════════════════════════════════════════ */
+.blocklyToolboxDiv { 
+  background: var(--charcoal) !important; 
+  border-right: 1px solid var(--gold-soft) !important; 
+  padding: 10px 0 !important; 
+}
+
+.blocklyTreeRow { 
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  position: relative !important;
+  height: 36px !important;
+  padding: 0 8px !important;
+  margin: 4px 6px !important;
+  border-radius: 6px !important;
+  transition: all 0.15s !important;
+  top: 0 !important;
+}
+
+.blocklyTreeIcon {
+  margin-right: 8px !important;
+  vertical-align: middle !important;
+  position: static !important;
+}
+
+.blocklyTreeLabel { 
+  color: var(--warm-white) !important; 
+  font-size: 13px !important; 
+  font-weight: 600 !important; 
+  line-height: normal !important;
+  vertical-align: middle !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.blocklyTreeRowContentContainer {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+}
+
+.blocklyTreeRow:hover { background: var(--charcoal-2) !important; box-shadow: inset 0 0 0 1px var(--gold-soft) !important; }
+.blocklyTreeRow:hover .blocklyTreeLabel { color: var(--gold) !important; }
+.blocklyTreeSelected { background: linear-gradient(90deg, var(--gold-soft), var(--gold)) !important; }
+.blocklyTreeSelected .blocklyTreeLabel { color: #000 !important; font-weight: 700 !important; }
+
+/* 데스크톱 기본 상태 햄버거 버튼 숨김 */
+.hamburger-btn { display: none; }
+
+/* 가로/세로 방해하는 안내창을 모든 화면에서 완전히 박멸 */
+#orientationOverlay {
+  display: none !important;
+}
+/* ════════════════════════════════════════════════════════════════════
+   v2.8.2 — 시리얼 모니터 입력창 (히든 커맨드 시스템)
+   시리얼 모니터가 펼쳐진 상태에서만 표시됨
+   ════════════════════════════════════════════════════════════════════ */
+.serial-monitor-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #0d0d0d;
+  border-top: 1px solid var(--gold-soft);
+}
+.serial-monitor-bar.collapsed .serial-monitor-input {
+  display: none;
+}
+.serial-prompt {
+  color: var(--gold);
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-weight: 700;
+  font-size: 13px;
+}
+#serialCmdInput {
+  flex: 1;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #ccc;
+  padding: 4px 8px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  border-radius: 4px;
+  outline: none;
+}
+#serialCmdInput:focus {
+  border-color: var(--gold-soft);
+  background: #222;
+}
+#serialCmdInput::placeholder {
+  color: #555;
+  font-style: italic;
+}
+
+/* v2.8.2 — 디지털 트윈 모드 활성화 시 실시간 실행 버튼 변신 */
+#btnRunRealtime.twin-mode {
+  background: linear-gradient(135deg, #667eea, #764ba2, #f093fb, #4facfe) !important;
+  background-size: 300% 300% !important;
+  animation: twinGradient 3s ease infinite;
+  color: white !important;
+  font-weight: 700;
+  border: 1px solid #764ba2 !important;
+  box-shadow: 0 0 12px rgba(118, 75, 162, 0.5);
+}
+@keyframes twinGradient {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* v2.8.2 — 토스트 알림 */
+.cubelink-toast {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-20px);
+  background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+  color: white;
+  padding: 14px 28px;
+  border-radius: 8px;
+  border: 1px solid var(--gold);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 20px rgba(212,175,55,0.3);
+  font-weight: 600;
+  font-size: 14px;
+  z-index: 99999;
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.cubelink-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.cubelink-toast.success { border-color: #2ecc71; box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 20px rgba(46,204,113,0.4); }
+.cubelink-toast.warn    { border-color: #f39c12; box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 20px rgba(243,156,18,0.4); }
+.cubelink-toast.info    { border-color: #3498db; box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 20px rgba(52,152,219,0.4); }
+
+
+
+/* ════════════════════════════════════════════════════════════════
+   v2.8.7 — 자동 반응형 레이아웃 (모든 해상도 자동 맞춤)
+   ════════════════════════════════════════════════════════════════ */
+
+/* 3D 로봇팔 뷰: 화면 높이에 비례 (최소 120 / 최대 240) */
+#robot-3d-view {
+  height: clamp(120px, 22vh, 240px) !important;
+  min-height: 120px !important;
+}
+
+/* 우측 사이드바 자체 스크롤 (페이지 전체 스크롤 방지) */
+.panel-right {
+  min-height: 0;
+}
+.tab-body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  max-height: 100%;
+}
+
+/* sim-stage가 flex 자식들을 자연스럽게 축소시키게 */
+.sim-stage {
+  min-height: 0;
+}
+
+/* 작은 화면(노트북/크롬북): 시리얼 모니터 자동 축소 */
+@media (max-height: 720px) {
+  #serialMonitorBar { height: 140px; }
+  body.graduated #serialMonitorBar { height: 140px; }
+}
+@media (max-height: 600px) {
+  #serialMonitorBar { height: 100px; }
+  body.graduated #serialMonitorBar { height: 100px; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   v2.8.9 — 포트 미연결 시 실시간 실행 버튼 비활성화 표시
+   ════════════════════════════════════════════════════════════════ */
+#btnRunRealtime:disabled,
+#btnRunRealtime.disconnected {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #555, #333) !important;
+  color: #999 !important;
+  filter: grayscale(0.6);
+}
+#btnRunRealtime.disconnected:hover {
+  transform: none;
+  box-shadow: none;
+}
+/* ════════════════════════════════════════════════════════════════
+   v2.9.1 — 실행 중 잠금 오버레이 (편집 충돌 방지)
+   실행 중 왼쪽 미션 패널 + 가운데 워크스페이스를 덮어 클릭 차단.
+   오른쪽 시뮬레이터는 덮지 않음(밝게 유지, 조작 가능).
+   ════════════════════════════════════════════════════════════════ */
+.run-lock-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: not-allowed;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(1px);
+  animation: runLockFadeIn 0.2s ease;
+}
+@keyframes runLockFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.run-lock-overlay .run-lock-msg {
+  text-align: center;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 16px 22px;
+  border-radius: 10px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+/* 시뮬레이션 실행 — 금색 */
+.run-lock-overlay.sim .run-lock-msg {
+  color: var(--gold);
+  border: 2px solid var(--gold);
+  background: rgba(20, 18, 10, 0.85);
+  box-shadow: 0 0 24px rgba(212, 175, 55, 0.45);
+}
+/* 실시간(실물) 실행 — 빨강 */
+.run-lock-overlay.real .run-lock-msg {
+  color: #ff8a8a;
+  border: 2px solid #e74c3c;
+  background: rgba(26, 10, 10, 0.85);
+  box-shadow: 0 0 24px rgba(231, 76, 60, 0.5);
+}
+/* 왼쪽 미션 패널 오버레이는 텍스트 없이 막만 (작아서) */
+.run-lock-overlay.compact .run-lock-msg {
+  font-size: 12px;
+  padding: 10px 12px;
+}
+/* ════════════════════════════════════════════════════════════════
+   v2.9.2 — CUBELINK Studio 프리미엄 대문(스플래시) 스타일
+   ════════════════════════════════════════════════════════════════ */
+.intro-page {
+  position: fixed;
+  top: 0;        /* 화면 맨 위부터 시작 */
+  left: 0;       /* 화면 맨 왼쪽부터 시작 */
+  width: 100vw;  /* 모니터 가로 너비 100% 강제 할당 */
+  height: 100vh; /* 모니터 세로 높이 100% 강제 할당 */
+  z-index: 99999; 
+  background-color: #0A0A0A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+/* 시작하기 누르면 부드럽게 사라지는 효과 */
+.intro-page.fade-out {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.intro-content {
+  text-align: center;
+  color: #FFF8E7;
+  width: 90%;
+  max-width: 460px;
+  padding: 20px;
+}
+
+/* 이미지 컨테이너 (액자 역할) */
+.intro-image-container {
+  margin-bottom: 30px;
+  border: 1.5px solid #D4AF37;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.15);
+  background: #111111;
+  aspect-ratio: 4 / 3; /* 사진 비율 유지 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.intro-image-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  z-index: 2;
+  /* 사진 밝은 배경을 살짝 눌러 다크 테마와 조화 */
+  filter: brightness(0.92) contrast(1.05) saturate(1.05);
+}
+
+/* 사진 위 골드 비네트 오버레이 (액자에 녹아드는 느낌) */
+.intro-image-container:not(.no-img)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgba(10,10,10,0.35) 100%),
+    linear-gradient(to top, rgba(10,10,10,0.45) 0%, transparent 35%);
+}
+
+
+/* 그림이 없을 때 나타나는 임시 가이드 텍스트 */
+.intro-img-placeholder {
+  position: absolute;
+  font-weight: bold;
+  color: #444;
+  font-size: 14pt;
+  letter-spacing: 1px;
+  z-index: 1;
+}
+
+.intro-title {
+  font-size: 26pt;
+  color: #D4AF37;
+  margin: 0 0 8px 0;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+}
+
+.intro-subtitle {
+  font-family: 'Segoe UI', sans-serif;
+  font-weight: 600;
+  font-size: 12pt;
+  color: #C8B98A;
+  margin: 0 0 15px 0;
+  letter-spacing: 0.5px;
+}
+
+.intro-desc {
+  font-size: 10.5pt;
+  color: #888;
+  margin: 0 0 35px 0;
+}
+
+/* 황금빛 진입 버튼 */
+.btn-intro-start {
+  background: linear-gradient(135deg, #D4AF37, #B8941F);
+  color: #0A0A0A;
+  border: none;
+  padding: 13px 45px;
+  font-size: 11.5pt;
+  font-weight: 700;
+  border-radius: 30px;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-intro-start:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(212, 175, 55, 0.45);
+}
+
+.btn-intro-start:active {
+  transform: translateY(1px);
+}
