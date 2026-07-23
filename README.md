@@ -32,6 +32,7 @@ Do not edit firmware copies under `archive/` or the historical folders under
 - `studio/electron/` — Windows Electron host and build configuration
 - `hardware/` — circuit, mechanical, and component documentation
 - `docs/` — project and protocol documentation
+- `AI/` — future AI architecture, prompts, tasks, and change records
 - `test/` — test plans and results
 
 ## Windows build
