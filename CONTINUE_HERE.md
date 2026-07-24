@@ -57,7 +57,10 @@ After a mixed-version test made pin 10 move to 170 and then back to 10, the
 protocol now includes pose profile `PARK_90_10_170_90`. The local Studio must
 reject every firmware response without that exact profile. Studio safe shutdown
 must send only `K`; firmware alone owns physical parking. Real-time execution
-must also lock the center Blockly workspace until execution stops.
+must also lock the center Blockly workspace until execution stops. The firmware
+EEPROM safety magic changed with this geometry, so its first boot must report
+`RECOVERY_REQUIRED`; physically place the unpowered arm in the new storage pose
+before confirming recovery.
 
 The matching Studio source includes a hidden, Studio-mediated joystick manual
 mode. After `실시간 준비 완료`, keep both sticks neutral and enter

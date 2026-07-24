@@ -129,6 +129,10 @@ Last updated: 2026-07-24
   Blockly workspace, and Studio safe shutdown sends only firmware command `K`
   instead of first duplicating the physical parking movement with `S` commands.
   Firmware is now the single owner of the physical parking sequence.
+- Changed the EEPROM safety magic after the pin 10 storage geometry change.
+  Old `safelyParked` records are invalidated on first boot, so the updated
+  firmware requires physical storage-pose confirmation instead of trusting a
+  former pin 10=10-degree record.
 - Firmware v1.4.1 now stages one shared image for both products: CubeLink Studio
   control remains available, while a power-only boot can enter standalone
   joystick control after neutral calibration and the deliberate two-stick

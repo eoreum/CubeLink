@@ -89,7 +89,9 @@ struct SafetyState {
   uint8_t checksum;
 };
 
-const uint16_t SAFETY_MAGIC = 0x434C;
+// Storage geometry changed when pin 10 moved from 10 to 170 degrees. Changing
+// the magic invalidates EEPROM SAFE records written for the former pose.
+const uint16_t SAFETY_MAGIC = 0x4350;
 const int SAFETY_EEPROM_ADDRESS = 0;
 const int PARK_BASE = 90;
 const int PARK_LOWER = 10;
