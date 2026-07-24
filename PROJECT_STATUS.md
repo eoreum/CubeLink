@@ -107,8 +107,10 @@ Last updated: 2026-07-24
 - After the pin 10 upper-arm servo mounting orientation changed, its confirmed
   storage target was changed from 10 to 170 degrees in both firmware and Studio.
   The full storage pose is now pin 6=90, pin 9=10, pin 10=170, pin 11=90.
-- CubeLink Studio source accepts v1.4.2 in addition to v1.4.0 and v1.4.1.
-  v1.4.2 compiles for the classic Nano old-bootloader target using 10,144 bytes
+- CubeLink Studio now requires v1.4.2 plus the exact
+  `PARK_90_10_170_90` pose profile. This rejects v1.4.0/v1.4.1 and older
+  v1.4.2 binaries that still park pin 10 at 10 degrees.
+  v1.4.2 compiles for the classic Nano old-bootloader target using 10,198 bytes
   of flash (33%) and 383 bytes of RAM (18%). It is not uploaded, physically
   tested, or deployed to the public web page.
 - Added a hidden Studio-mediated joystick manual mode with no visible button.
@@ -123,6 +125,10 @@ Last updated: 2026-07-24
   button no longer forces the mode back to real-only, and entering `twin` again
   reactivates twin mode if it was changed elsewhere. The fix is local only and
   is not yet publicly deployed or physically validated.
+- Fixed two physical-test findings: real-time execution now locks the center
+  Blockly workspace, and Studio safe shutdown sends only firmware command `K`
+  instead of first duplicating the physical parking movement with `S` commands.
+  Firmware is now the single owner of the physical parking sequence.
 - Firmware v1.4.1 now stages one shared image for both products: CubeLink Studio
   control remains available, while a power-only boot can enter standalone
   joystick control after neutral calibration and the deliberate two-stick

@@ -1746,15 +1746,12 @@ async function sendServo(pin, angle) {
     const mainMsg = isRealtime
       ? '▶ 실물 로봇 실행 중입니다.<br>⏹ 정지 후 편집하세요.'
       : '🎮 시뮬레이션 실행 중입니다.<br>⏹ 정지 후 편집하세요.';
-    // Physical real-time mode stays live-editable so servo angle/time fields
-    // can be tuned while observing the robot. Simulation playback keeps the
-    // original workspace lock.
-    const targets = isRealtime
-      ? [{ el: document.querySelector('.panel-left'), compact: true, msg: '🔒 실행 중' }]
-      : [
-          { el: document.querySelector('.panel-center'), compact: false, msg: mainMsg },
-          { el: document.querySelector('.panel-left'),   compact: true,  msg: '🔒 실행 중' }
-        ];
+    // Block editing during either physical or simulated execution. Live edits
+    // can change the remaining command stream after the arm has already moved.
+    const targets = [
+      { el: document.querySelector('.panel-center'), compact: false, msg: mainMsg },
+      { el: document.querySelector('.panel-left'),   compact: true,  msg: '🔒 실행 중' }
+    ];
     targets.forEach(t => {
       if (!t.el) return;
       if (getComputedStyle(t.el).position === 'static') {
@@ -1907,40 +1904,26 @@ function setupIntroPage() {
         return;
       }
 
-      // 안전 위치: 6·11번 90도, 9번 10도, 10번 170도 (캘리브레이션 오프셋 반영)
+      // 실제 주차 동작과 EEPROM SAFE 기록은 펌웨어의 K 명령 한 곳에서만
+      // 수행한다. Studio가 먼저 S 명령으로 움직이면 서로 다른 펌웨어
+      // 보관각과 충돌하여 한 축이 두 번 움직일 수 있다.
       const safePos = [ [6, 90], [11, 90], [9, 10], [10, 170] ];
       let writer = null;
       try {
-              writer = await (window.acquireSerialWriter
-                ? window.acquireSerialWriter(port)
-                : Promise.resolve(port.writable.getWriter()));
+        writer = await (window.acquireSerialWriter
+          ? window.acquireSerialWriter(port)
+          : Promise.resolve(port.writable.getWriter()));
         const enc = new TextEncoder();
-        const SEC = 1;                       // 이동 시간 1초
-        const STEPS = 20;                    // 20단계로 나눠 부드럽게
-        // 현재 각도에서 목표 각도까지 단계별로 이동
-        for (const [pin, target] of safePos) {
-          const start = (window.servoAngles && window.servoAngles[pin] != null)
-                        ? window.servoAngles[pin] : 90;
-          const off = (window.getServoOffset ? window.getServoOffset(pin) : 0);
-          for (let i = 1; i <= STEPS; i++) {
-            const a = Math.round(start + (target - start) * (i / STEPS));
-            let realAngle = Math.round(a + off);
-            if (String(pin) === '11') realAngle = Math.max(50, Math.min(120, realAngle));
-            else realAngle = Math.max(0, Math.min(180, realAngle));
-            await writer.write(enc.encode(`S,${pin},${realAngle}\n`));
-            if (window.Sim) Sim.setServoAngle(pin, a);       // 시뮬도 같이 이동
-            if (window.servoAngles) window.servoAngles[pin] = a;
-            await new Promise(r => setTimeout(r, (SEC * 1000) / STEPS));  // 단계 간 간격
-          }
-        }
-        await new Promise(r => setTimeout(r, 300));          // 마지막 이동 완료 대기
-
-        // 펌웨어가 보관 자세를 재확인하고 EEPROM에 SAFE를 기록한 뒤 PARKED로 응답한다.
         const parked = window.waitForBoardResponse('PARKED', 30000);
         await writer.write(enc.encode('K\n'));
         writer.releaseLock();
         writer = null;
         await parked;
+        for (const [pin, target] of safePos) {
+          if (window.Sim) Sim.setServoAngle(pin, target);
+          window.servoAngles = window.servoAngles || {};
+          window.servoAngles[pin] = target;
+        }
         parkedConfirmed = true;
 
       } catch (e) {

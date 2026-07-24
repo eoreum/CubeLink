@@ -31,6 +31,10 @@ Core commands:
 - `K` — park one axis at a time and confirm safe shutdown
 - `R` — confirm that the unpowered arm was manually placed in the storage pose
 
+The current candidate appends `PARK_90_10_170_90` to `READY` and `PONG`.
+Matching Studio builds require this pose profile and reject older v1.4.2
+binaries whose pin 10 storage target may still be 10 degrees.
+
 The v1.4.1 firmware currently uploaded to the development Nano combines the
 Studio safety flow with a power-only standalone joystick path. The v1.4.2
 source candidate adds Studio/standalone ownership locking, inactivity

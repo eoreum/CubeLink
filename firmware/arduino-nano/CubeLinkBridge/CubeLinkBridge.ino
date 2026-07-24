@@ -268,7 +268,8 @@ void handleCommand(const char* line) {
   }
   else if (cmd == 'P') {
     Serial.print(F("PONG,CUBELINK,v1.4.2,"));
-    Serial.println(safetyState.safelyParked ? F("SAFE") : F("RECOVERY_REQUIRED"));
+    Serial.print(safetyState.safelyParked ? F("SAFE") : F("RECOVERY_REQUIRED"));
+    Serial.println(F(",PARK_90_10_170_90"));
   }
   else if (cmd == 'I') {
     initializeFromPark();
@@ -842,5 +843,6 @@ void parkAndShutdown() {
 
 void sendReady() {
   Serial.print(F("READY,CUBELINK,v1.4.2,"));
-  Serial.println(safetyState.safelyParked ? F("SAFE") : F("RECOVERY_REQUIRED"));
+  Serial.print(safetyState.safelyParked ? F("SAFE") : F("RECOVERY_REQUIRED"));
+  Serial.println(F(",PARK_90_10_170_90"));
 }

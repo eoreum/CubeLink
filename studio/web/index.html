@@ -486,13 +486,20 @@ window.parseBoardLine = function(line) {
     }
     const version = p[2] || '';
     const safetyState = p[3] || 'UNKNOWN';
-    const supportedSafetyVersions = ['v1.4.0', 'v1.4.1', 'v1.4.2'];
-    if (!supportedSafetyVersions.includes(version)) {
-      window._cubeSafety.state = 'LEGACY';
+    const poseProfile = p[4] || '';
+    const requiredVersion = 'v1.4.2';
+    const requiredPoseProfile = 'PARK_90_10_170_90';
+    if (version !== requiredVersion || poseProfile !== requiredPoseProfile) {
+      window._cubeSafety.state = 'INCOMPATIBLE';
       window._cubeSafety.initialized = false;
       setConnectionState('failed');
-      window.updatePortStatusBadge('failed', `지원하지 않는 펌웨어 ${version || 'UNKNOWN'}`);
-      if (window.showToast) window.showToast('⚠ 안전 프로토콜 v1.4.0 이상 펌웨어가 필요합니다.', 'warn', 5000);
+      const detail = version !== requiredVersion
+        ? `${version || 'UNKNOWN'} — ${requiredVersion} 필요`
+        : '보관 자세 프로필 불일치';
+      window.updatePortStatusBadge('failed', `호환되지 않는 펌웨어: ${detail}`);
+      if (window.showToast) {
+        window.showToast('⚠ 10번=170° 보관 자세가 포함된 최신 v1.4.2 펌웨어를 다시 업로드하세요.', 'warn', 6000);
+      }
       return;
     }
     window.runCubeSafetyStartup(safetyState);

@@ -53,6 +53,12 @@ is now 170 degrees, not 10 degrees. Firmware initialization/parking and Studio
 recovery/safe shutdown must use the shared pose: pin 6=90, pin 9=10,
 pin 10=170, pin 11=90.
 
+After a mixed-version test made pin 10 move to 170 and then back to 10, the
+protocol now includes pose profile `PARK_90_10_170_90`. The local Studio must
+reject every firmware response without that exact profile. Studio safe shutdown
+must send only `K`; firmware alone owns physical parking. Real-time execution
+must also lock the center Blockly workspace until execution stops.
+
 The matching Studio source includes a hidden, Studio-mediated joystick manual
 mode. After `실시간 준비 완료`, keep both sticks neutral and enter
 `조이스틱수동` (or `joystickmanual`) in the serial command field. Exit with
