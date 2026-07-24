@@ -423,7 +423,7 @@ window.runCubeSafetyStartup = async function(state) {
       const confirmed = confirm(
         '이전 사용이 안전 종료로 완료되지 않았습니다.\n\n' +
         'USB 전원을 분리한 상태에서 로봇팔을 보관 자세로 놓고, 팔을 손으로 지지한 뒤 확인을 누르세요.\n' +
-        '(6번 90°, 9번 10°, 10번 10°, 11번 90°)'
+        '(6번 90°, 9번 10°, 10번 170°, 11번 90°)'
       );
       if (!confirmed) {
         if (window.showToast) window.showToast('⚠ 복구 확인 전에는 실물 실행이 잠겨 있습니다.', 'warn', 4000);

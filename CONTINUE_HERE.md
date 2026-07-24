@@ -48,6 +48,11 @@ degrees. Nano old-bootloader compilation passed on 2026-07-24. Controlled upload
 and physical testing are required before replacing the v1.4.1 image or updating
 the public Studio.
 
+The pin 10 upper-arm servo mounting orientation has changed. Its storage target
+is now 170 degrees, not 10 degrees. Firmware initialization/parking and Studio
+recovery/safe shutdown must use the shared pose: pin 6=90, pin 9=10,
+pin 10=170, pin 11=90.
+
 The matching Studio source includes a hidden, Studio-mediated joystick manual
 mode. After `실시간 준비 완료`, keep both sticks neutral and enter
 `조이스틱수동` (or `joystickmanual`) in the serial command field. Exit with

@@ -93,7 +93,7 @@ const uint16_t SAFETY_MAGIC = 0x434C;
 const int SAFETY_EEPROM_ADDRESS = 0;
 const int PARK_BASE = 90;
 const int PARK_LOWER = 10;
-const int PARK_UPPER = 10;
+const int PARK_UPPER = 170;
 const int PARK_GRIPPER = 90;
 SafetyState safetyState;
 bool servosActive = false;

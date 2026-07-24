@@ -104,9 +104,12 @@ Last updated: 2026-07-24
   and moves one axis before energizing the next; and base/lower/upper software
   limits are conservatively restricted to 10..170 degrees pending physical
   end-stop measurement.
+- After the pin 10 upper-arm servo mounting orientation changed, its confirmed
+  storage target was changed from 10 to 170 degrees in both firmware and Studio.
+  The full storage pose is now pin 6=90, pin 9=10, pin 10=170, pin 11=90.
 - CubeLink Studio source accepts v1.4.2 in addition to v1.4.0 and v1.4.1.
-  v1.4.2 compiles for the classic Nano old-bootloader target using 10,098 bytes
-  of flash (32%) and 383 bytes of RAM (18%). It is not uploaded, physically
+  v1.4.2 compiles for the classic Nano old-bootloader target using 10,144 bytes
+  of flash (33%) and 383 bytes of RAM (18%). It is not uploaded, physically
   tested, or deployed to the public web page.
 - Added a hidden Studio-mediated joystick manual mode with no visible button.
   Enter `조이스틱수동` or `joystickmanual` in the serial command field to

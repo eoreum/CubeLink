@@ -1907,8 +1907,8 @@ function setupIntroPage() {
         return;
       }
 
-      // 안전 위치: 6·11번 90도, 9·10번 10도 (캘리브레이션 오프셋 반영)
-      const safePos = [ [6, 90], [11, 90], [9, 10], [10, 10] ];
+      // 안전 위치: 6·11번 90도, 9번 10도, 10번 170도 (캘리브레이션 오프셋 반영)
+      const safePos = [ [6, 90], [11, 90], [9, 10], [10, 170] ];
       let writer = null;
       try {
               writer = await (window.acquireSerialWriter
