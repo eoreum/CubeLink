@@ -40,6 +40,14 @@ inside Codex remains unavailable; future firmware builds must be compiled in
 Arduino IDE and tested with the arm supported. Do not set production lock bits
 during development testing.
 
+Firmware v1.4.2 is the next source candidate and has not been uploaded. It locks
+out standalone joystick arming after any valid Studio protocol command, performs
+a full park-and-detach after 30 seconds of standalone inactivity, initializes
+Studio axes sequentially, and limits base/lower/upper commands to 10..170
+degrees. Nano old-bootloader compilation passed on 2026-07-24. Controlled upload
+and physical testing are required before replacing the v1.4.1 image or updating
+the public Studio.
+
 Test in this order:
 
 1. Connect the Arduino Nano by USB.

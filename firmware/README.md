@@ -14,7 +14,7 @@ Absolute path on this computer:
 C:\Users\dscom\Documents\Codex\CubeLink\firmware\arduino-nano\CubeLinkBridge\CubeLinkBridge.ino
 ```
 
-Current staged firmware version: `v1.4.1`.
+Current source candidate: `v1.4.2`.
 
 Older firmware copies are stored under `archive/firmware/`. They must not be
 edited or uploaded as the current firmware. Arduino temporary build folders and
@@ -31,6 +31,11 @@ Core commands:
 - `K` — park one axis at a time and confirm safe shutdown
 - `R` — confirm that the unpowered arm was manually placed in the storage pose
 
-The v1.4.1 firmware combines the Studio safety flow with a power-only
-standalone joystick path. It has not yet been compiled, uploaded, or physically
-validated. Do not treat it as a released production firmware.
+The v1.4.1 firmware currently uploaded to the development Nano combines the
+Studio safety flow with a power-only standalone joystick path. The v1.4.2
+source candidate adds Studio/standalone ownership locking, inactivity
+park-and-detach, sequential Studio initialization, and conservative 10..170
+degree arm limits. v1.4.2 compiles successfully for the classic Arduino Nano
+ATmega328P old bootloader target, but it must still be uploaded and physically
+validated before it can replace v1.4.1. Do not treat either version as released
+production firmware.

@@ -3,7 +3,16 @@
 
 /*
  * ============================================================
- *  CUBELINK Bridge Firmware v1.4.1 (dual Studio/standalone candidate)
+ *  CUBELINK Bridge Firmware v1.4.2 (dual Studio/standalone candidate)
+ *
+ *  v1.4.2 safety fixes:
+ *   - A verified Studio serial session locks out standalone joystick arming
+ *     until the next reboot.
+ *   - Standalone inactivity parks and detaches all servos instead of only
+ *     leaving joystick mode.
+ *   - Studio initialization attaches and moves one axis at a time.
+ *   - Arm joints use conservative 10..170 degree software limits pending
+ *     physical end-stop measurement.
  *
  *  v1.4.1 standalone behavior:
  *   - Power-only boot keeps every servo detached and stationary.
@@ -64,9 +73,9 @@ const uint8_t PIN_JOY2_SW  = 7;
 
 // ═══════════════ 관절별 안전 각도 제한 ═══════════════
 //  ★ 실험하면서 이 값만 고치면 됩니다 (실시간·자율 공통) ★
-const int BASE_MIN    = 0,   BASE_MAX    = 180;
-const int LOWER_MIN   = 0,   LOWER_MAX   = 180;
-const int UPPER_MIN   = 0,   UPPER_MAX   = 180;
+const int BASE_MIN    = 10,  BASE_MAX    = 170;
+const int LOWER_MIN   = 10,  LOWER_MAX   = 170;
+const int UPPER_MIN   = 10,  UPPER_MAX   = 170;
 const int GRIPPER_MIN = 50,  GRIPPER_MAX = 120;  // 그리퍼: 조사 중(보수값)
 // ════════════════════════════════════════════════════
 
@@ -88,6 +97,7 @@ const int PARK_UPPER = 10;
 const int PARK_GRIPPER = 90;
 SafetyState safetyState;
 bool servosActive = false;
+bool studioSessionActive = false;
 
 // ───────────────── 통신 버퍼 ─────────────────
 const uint8_t BUF_SIZE = 24;
@@ -225,6 +235,13 @@ void readSerial() {
 void handleCommand(const char* line) {
   char cmd = line[0];
 
+  // Any valid Studio protocol command reserves control for Studio until reboot.
+  // This prevents a joystick corner gesture from stealing control after INIT_OK.
+  if (cmd == 'P' || cmd == 'R' || cmd == 'I' ||
+      cmd == 'K' || cmd == 'S' || cmd == 'L') {
+    studioSessionActive = true;
+  }
+
   // v1.3: USB 명령(S/L)이 오면 자율 모드 즉시 해제 (실시간 우선)
   if (autoMode && (cmd == 'S' || cmd == 'L')) {
     disarmAuto();
@@ -250,7 +267,7 @@ void handleCommand(const char* line) {
     }
   }
   else if (cmd == 'P') {
-    Serial.print(F("PONG,CUBELINK,v1.4.1,"));
+    Serial.print(F("PONG,CUBELINK,v1.4.2,"));
     Serial.println(safetyState.safelyParked ? F("SAFE") : F("RECOVERY_REQUIRED"));
   }
   else if (cmd == 'I') {
@@ -290,6 +307,7 @@ bool parseTwoInts(const char* s, int& a, int& b) {
 //   오른쪽 스틱 오른쪽 아래 = X 커짐   + Y 커짐
 // ============================================
 void checkArming() {
+  if (studioSessionActive) return;
   if (!joystickCalibrated) return;
   if (!servosActive && !safetyState.safelyParked) return;
 
@@ -367,7 +385,9 @@ void disarmAuto() {
 // ============================================
 void checkDisarm() {
   if (millis() - lastAutoActivity >= AUTO_IDLE_TIMEOUT) {
-    disarmAuto();
+    // Inactivity is a safety shutdown, not just a mode change: return to the
+    // storage pose, persist SAFE, detach every servo, and require re-arming.
+    parkAndShutdown();
   }
 }
 
@@ -782,17 +802,20 @@ void initializeFromPark() {
   curLower = PARK_LOWER;
   curUpper = PARK_UPPER;
   curGripper = PARK_GRIPPER;
+  // Attach and move one axis before energizing the next one. Previously all
+  // four axes were attached before the first controlled move.
   attachAtAngle(servoBase, PIN_BASE, curBase);
-  attachAtAngle(servoLower, PIN_LOWER, curLower);
-  attachAtAngle(servoUpper, PIN_UPPER, curUpper);
-  attachAtAngle(servoGripper, PIN_GRIPPER, curGripper);
-  servosActive = true;
-
-  // One axis at a time; loaded arm axes move more slowly.
   smoothServoTo(servoBase, PIN_BASE, curBase, 90, 20);
+
+  attachAtAngle(servoLower, PIN_LOWER, curLower);
   smoothServoTo(servoLower, PIN_LOWER, curLower, 90, 30);
+
+  attachAtAngle(servoUpper, PIN_UPPER, curUpper);
   smoothServoTo(servoUpper, PIN_UPPER, curUpper, 90, 30);
+
+  attachAtAngle(servoGripper, PIN_GRIPPER, curGripper);
   smoothServoTo(servoGripper, PIN_GRIPPER, curGripper, 90, 20);
+  servosActive = true;
   Serial.println(F("INIT_OK"));
 }
 
@@ -818,6 +841,6 @@ void parkAndShutdown() {
 }
 
 void sendReady() {
-  Serial.print(F("READY,CUBELINK,v1.4.1,"));
+  Serial.print(F("READY,CUBELINK,v1.4.2,"));
   Serial.println(safetyState.safelyParked ? F("SAFE") : F("RECOVERY_REQUIRED"));
 }

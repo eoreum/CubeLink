@@ -98,6 +98,16 @@ Last updated: 2026-07-23
 
 ## Firmware safety work in progress
 
+- Firmware v1.4.2 candidate fixes four pre-test findings: Studio handshake
+  commands lock out standalone arming until reboot; 30-second standalone
+  inactivity now parks and detaches all servos; Studio initialization attaches
+  and moves one axis before energizing the next; and base/lower/upper software
+  limits are conservatively restricted to 10..170 degrees pending physical
+  end-stop measurement.
+- CubeLink Studio source accepts v1.4.2 in addition to v1.4.0 and v1.4.1.
+  v1.4.2 compiles for the classic Nano old-bootloader target using 10,098 bytes
+  of flash (32%) and 383 bytes of RAM (18%). It is not uploaded, physically
+  tested, or deployed to the public web page.
 - Firmware v1.4.1 now stages one shared image for both products: CubeLink Studio
   control remains available, while a power-only boot can enter standalone
   joystick control after neutral calibration and the deliberate two-stick
