@@ -61,6 +61,10 @@ normal Studio `S` commands, uses one dominant axis per stick, and automatically
 stops before block execution or safe shutdown. It is not deployed or physically
 validated yet.
 
+The hidden `twin` command now remains in twin mode when the digital-twin run
+button is clicked. Re-entering `twin` also restores twin mode if another action
+changed it. This fix is local and has not been deployed to the public Studio.
+
 Test in this order:
 
 1. Connect the Arduino Nano by USB.

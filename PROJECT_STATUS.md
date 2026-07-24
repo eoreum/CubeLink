@@ -119,6 +119,10 @@ Last updated: 2026-07-24
   limits, and automatically exits for block execution, safe shutdown, or lost
   safety/serial state. This path is not physically validated or publicly
   deployed.
+- Fixed the hidden `twin` command flow: clicking the resulting digital-twin run
+  button no longer forces the mode back to real-only, and entering `twin` again
+  reactivates twin mode if it was changed elsewhere. The fix is local only and
+  is not yet publicly deployed or physically validated.
 - Firmware v1.4.1 now stages one shared image for both products: CubeLink Studio
   control remains available, while a power-only boot can enter standalone
   joystick control after neutral calibration and the deliberate two-stick

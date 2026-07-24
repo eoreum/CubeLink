@@ -1470,14 +1470,20 @@ window.addEventListener('load', () => {
     if (btnRun && btnRun.dataset.modeBound !== '1') {
       btnRun.dataset.modeBound = '1';
       btnRun.addEventListener('click', () => {
-        window.setActionMode('real', { silent:false });
+        // The hidden twin command intentionally selects simultaneous physical
+        // and graphic output. Preserve that selection when its run button is
+        // clicked; only ordinary real-time execution should force real mode.
+        if (window.actionMode !== 'twin') {
+          window.setActionMode('real', { silent:false });
+        }
       }, true);
     }
   }
 
   window.unlockTwinMode = function() {
     if (window.twinUnlocked) {
-      window.showToast('이미 디지털 트윈이 활성화되어 있습니다', 'info');
+      window.setActionMode('twin', { silent:true });
+      window.showToast('디지털 트윈 모드를 다시 활성화했습니다', 'info');
       return;
     }
     window.twinUnlocked = true;
