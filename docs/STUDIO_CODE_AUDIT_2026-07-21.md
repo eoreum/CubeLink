@@ -2,6 +2,23 @@
 
 Date: 2026-07-21 (Asia/Seoul)
 
+## 2026-07-24 connection update
+
+The original findings below remain as an audit record. Since that review,
+Studio connection states were separated, Electron main-process auto-reopen was
+removed, firmware v1.4.2 plus pose-profile verification became mandatory, and
+firmware became the sole owner of physical parking. The latest offline
+reliability pass also adds serialized native COM transitions, selected-port
+revalidation, bounded native open/close/write operations, failed-write
+disconnect handling, stale Electron wrapper cleanup, and a 4.5-second idle
+`P/PONG` round-trip watchdog. Firmware now discards an entire oversized line
+and strictly validates exact command formats and supported output pins.
+
+Static JavaScript checks, Nano old-bootloader compilation, and Windows NSIS
+packaging pass. The installer includes the native Windows x64 serial binding
+and exact current web resources. Physical v1.4.2 USB/servo fault testing and
+code signing remain required before release.
+
 ## Purpose
 
 This document maps the current CubeLink Studio implementation so that future

@@ -105,6 +105,7 @@ bool studioSessionActive = false;
 const uint8_t BUF_SIZE = 24;
 char  rxBuf[BUF_SIZE];
 uint8_t rxLen = 0;
+bool rxOverflow = false;
 
 // ───────────────── 송신 주기 ─────────────────
 unsigned long tUltrasonic = 0;
@@ -221,14 +222,23 @@ void readSerial() {
   while (Serial.available() > 0) {
     char c = (char)Serial.read();
     if (c == '\n' || c == '\r') {
+      if (rxOverflow) {
+        rxOverflow = false;
+        rxLen = 0;
+        Serial.println(F("ERR,LINE_TOO_LONG"));
+        continue;
+      }
       if (rxLen > 0) {
         rxBuf[rxLen] = '\0';
         handleCommand(rxBuf);
         rxLen = 0;
       }
-    } else if (rxLen < BUF_SIZE - 1) {
+    } else if (!rxOverflow && rxLen < BUF_SIZE - 1) {
       rxBuf[rxLen++] = c;
     } else {
+      // Discard the whole oversized line. Otherwise its tail could be parsed
+      // as a separate, valid-looking motion command.
+      rxOverflow = true;
       rxLen = 0;
     }
   }
@@ -237,49 +247,55 @@ void readSerial() {
 void handleCommand(const char* line) {
   char cmd = line[0];
 
-  // Any valid Studio protocol command reserves control for Studio until reboot.
-  // This prevents a joystick corner gesture from stealing control after INIT_OK.
-  if (cmd == 'P' || cmd == 'R' || cmd == 'I' ||
-      cmd == 'K' || cmd == 'S' || cmd == 'L') {
-    studioSessionActive = true;
-  }
-
-  // v1.3: USB 명령(S/L)이 오면 자율 모드 즉시 해제 (실시간 우선)
-  if (autoMode && (cmd == 'S' || cmd == 'L')) {
-    disarmAuto();
-  }
-
   if (cmd == 'S') {
+    int pin, angle;
+    if (!parseTwoInts(line + 1, pin, angle)) {
+      Serial.println(F("ERR,BAD_FORMAT"));
+      return;
+    }
+    if (!isServoPin(pin)) {
+      Serial.println(F("ERR,BAD_PIN"));
+      return;
+    }
+    studioSessionActive = true;
+    if (autoMode) disarmAuto();
     if (!servosActive) {
       Serial.println(F("ERR,NOT_INITIALIZED"));
       return;
     }
-    int pin, angle;
-    if (parseTwoInts(line + 1, pin, angle)) {
-      moveServo(pin, angle);
-      syncCurAngle(pin, angle);
-    }
+    moveServo(pin, angle);
+    syncCurAngle(pin, angle);
   }
   else if (cmd == 'L') {
     int pin, val;
-    if (parseTwoInts(line + 1, pin, val)) {
-      if (pin == PIN_LED) {              // ★ LED(13)만 허용
-      digitalWrite(pin, val ? HIGH : LOW);
-      }
+    if (!parseTwoInts(line + 1, pin, val)) {
+      Serial.println(F("ERR,BAD_FORMAT"));
+      return;
     }
+    if (pin != PIN_LED || (val != 0 && val != 1)) {
+      Serial.println(F("ERR,BAD_PIN_OR_VALUE"));
+      return;
+    }
+    studioSessionActive = true;
+    if (autoMode) disarmAuto();
+    digitalWrite(pin, val ? HIGH : LOW);
   }
-  else if (cmd == 'P') {
+  else if (strcmp(line, "P") == 0) {
+    studioSessionActive = true;
     Serial.print(F("PONG,CUBELINK,v1.4.2,"));
     Serial.print(safetyState.safelyParked ? F("SAFE") : F("RECOVERY_REQUIRED"));
     Serial.println(F(",PARK_90_10_170_90"));
   }
-  else if (cmd == 'I') {
+  else if (strcmp(line, "I") == 0) {
+    studioSessionActive = true;
     initializeFromPark();
   }
-  else if (cmd == 'K') {
+  else if (strcmp(line, "K") == 0) {
+    studioSessionActive = true;
     parkAndShutdown();
   }
-  else if (cmd == 'R') {
+  else if (strcmp(line, "R") == 0) {
+    studioSessionActive = true;
     if (servosActive) {
       Serial.println(F("ERR,SERVOS_ACTIVE"));
     } else {
@@ -287,18 +303,36 @@ void handleCommand(const char* line) {
       Serial.println(F("RECOVERY_ACCEPTED"));
     }
   }
-  // 그 외 알 수 없는 명령은 안전하게 무시 (전방 호환성)
+  else if (cmd == 'P' || cmd == 'I' || cmd == 'K' || cmd == 'R') {
+    Serial.println(F("ERR,BAD_FORMAT"));
+  }
+  else {
+    Serial.println(F("ERR,UNKNOWN_COMMAND"));
+  }
 }
 
 bool parseTwoInts(const char* s, int& a, int& b) {
-  while (*s == ',' || *s == ' ') s++;
-  if (!*s) return false;
-  a = atoi(s);
-  while (*s && *s != ',') s++;
   if (*s != ',') return false;
   s++;
-  b = atoi(s);
+
+  char* end;
+  long first = strtol(s, &end, 10);
+  if (end == s || *end != ',') return false;
+  s = end + 1;
+
+  long second = strtol(s, &end, 10);
+  if (end == s || *end != '\0') return false;
+  if (first < -32768L || first > 32767L ||
+      second < -32768L || second > 32767L) return false;
+
+  a = (int)first;
+  b = (int)second;
   return true;
+}
+
+bool isServoPin(int pin) {
+  return pin == PIN_BASE || pin == PIN_LOWER ||
+         pin == PIN_UPPER || pin == PIN_GRIPPER;
 }
 
 // ============================================

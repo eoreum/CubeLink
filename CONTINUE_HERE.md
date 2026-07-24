@@ -36,9 +36,9 @@ Interrupted standalone sessions require the arm to be physically placed in the
 storage pose and both joystick buttons held for two seconds. Holding both buttons
 in standalone mode parks one axis at a time and detaches all servos. Studio still
 uses R/I/K and takes priority when it sends servo commands. Compile verification
-inside Codex remains unavailable; future firmware builds must be compiled in
-Arduino IDE and tested with the arm supported. Do not set production lock bits
-during development testing.
+now passes with the Arduino CLI for the Nano old-bootloader target, but every
+firmware build must still be tested with the arm supported. Do not set
+production lock bits during development testing.
 
 Firmware v1.4.2 is the next source candidate and has not been uploaded. It locks
 out standalone joystick arming after any valid Studio protocol command, performs
@@ -47,6 +47,14 @@ Studio axes sequentially, and limits base/lower/upper commands to 10..170
 degrees. Nano old-bootloader compilation passed on 2026-07-24. Controlled upload
 and physical testing are required before replacing the v1.4.1 image or updating
 the public Studio.
+
+The local offline Studio now has hardened native COM transitions, explicit
+open/write timeouts, strict selected-port revalidation, stale listener cleanup,
+and a two-way `P/PONG` health check. A fresh local assisted installer exists at
+`studio\electron\dist\Cubelink_Studio.exe`, includes the Windows x64 native
+serial binding, and contains web files matching the current source. It is
+unsigned, not published, and has not yet passed the current v1.4.2 physical
+USB/servo test, so it is a validation candidate rather than a release.
 
 The pin 10 upper-arm servo mounting orientation has changed. Its storage target
 is now 170 degrees, not 10 degrees. Firmware initialization/parking and Studio

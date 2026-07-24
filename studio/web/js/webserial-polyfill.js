@@ -167,14 +167,25 @@
     let opened = false;
     let readableStream = null;
     let writableStream = null;
+    let statusListener = null;
 
-    // 상태 변화 감지 → disconnect 이벤트 발생
-    statusListeners.push((s) => {
-      if ((s === 'closed' || (typeof s === 'string' && s.startsWith('error'))) && opened) {
-        opened = false;
-        evtTarget.dispatchEvent(new Event('disconnect'));
-      }
-    });
+    const detachStatusListener = () => {
+      if (!statusListener) return;
+      const index = statusListeners.indexOf(statusListener);
+      if (index >= 0) statusListeners.splice(index, 1);
+      statusListener = null;
+    };
+    const attachStatusListener = () => {
+      detachStatusListener();
+      statusListener = (s) => {
+        if ((s === 'closed' || (typeof s === 'string' && s.startsWith('error'))) && opened) {
+          opened = false;
+          detachStatusListener();
+          evtTarget.dispatchEvent(new Event('disconnect'));
+        }
+      };
+      statusListeners.push(statusListener);
+    };
 
     const port = {
       // ── 포트 열기 ──
@@ -185,6 +196,7 @@
           throw new Error(res && res.error ? res.error : '포트 열기 실패');
         }
         opened = true;
+        attachStatusListener();
 
         // readable: main에서 오는 데이터를 ReadableStream으로 노출
         readableStream = new ReadableStream({
@@ -223,6 +235,7 @@
       // ── 포트 닫기 ──
       async close() {
         opened = false;
+        detachStatusListener();
         try { await window.cubelink.disconnect(); } catch (_) {}
         readableStream = null;
         writableStream = null;

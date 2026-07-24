@@ -502,6 +502,9 @@ window.parseBoardLine = function(line) {
       }
       return;
     }
+    // A valid PONG proves both directions of the serial link are working.
+    window._lastPongAt = Date.now();
+    window._pingOutstandingAt = 0;
     window.runCubeSafetyStartup(safetyState);
     return;
   }
@@ -525,6 +528,10 @@ window._connState = 'idle';
 window._reconnecting = false;
 window._autoReconnect =  false;  // v2.8.9: brown-out 무한 루프 차단 — 수동 재연결만 허용
 window._selectedPortLabel = 'USB 장치 없음';
+window._lastPongAt = 0;
+window._pingOutstandingAt = 0;
+window._heartbeatBusy = false;
+window._connectionLossHandling = false;
 
 window.describeSerialPort = function(port) {
   try {
@@ -608,6 +615,9 @@ window.fullCleanup = async function(opts) {
       clearTimeout(window._handshakeTimer);
       window._handshakeTimer = null;
     }
+    window._lastPongAt = 0;
+    window._pingOutstandingAt = 0;
+    window._heartbeatBusy = false;
     window._readerRunning = false;
     try { await window._reader?.cancel(); } catch(_){}
     try { window._reader?.releaseLock(); } catch(_){}
@@ -803,19 +813,51 @@ window.startCubelinkReader = async function(port) {
       if (window.showToast) window.showToast('🛑 포트는 열렸지만 CubeLink 펌웨어 응답이 없습니다.', 'error', 5000);
     }
   }, 8000);
-    // v2.9.0: 펌웨어 v1.1 자율모드 오인 방지 하트비트 (1초마다 P 전송)
+  // The P/PONG heartbeat verifies a complete Studio -> firmware -> Studio
+  // round trip. It is paused while runtime or safety motion owns the writer.
   if (window._heartbeatTimer) clearInterval(window._heartbeatTimer);
   window._heartbeatTimer = setInterval(async () => {
     if (!window._serialPort || !window._serialPort.writable) {
       clearInterval(window._heartbeatTimer); window._heartbeatTimer = null; return;
     }
-    if (window._runtimeRunning) return;     // 실행 중엔 S/L 명령이 흐르므로 생략
-    if (window._cubeSafety && window._cubeSafety.flowRunning) return;
+    if (['idle', 'lost', 'failed'].includes(window._connState)) return;
+    if (window._runtimeRunning ||
+        (window._cubeSafety && window._cubeSafety.flowRunning)) {
+      window._pingOutstandingAt = 0;
+      return;
+    }
+    if (window._heartbeatBusy) return;
+
+    const now = Date.now();
+    if (window._connState === 'ready' &&
+        window._pingOutstandingAt &&
+        now - window._pingOutstandingAt > 4500) {
+      if (window._connectionLossHandling) return;
+      window._connectionLossHandling = true;
+      try {
+        setConnectionState('lost');
+        window.updatePortStatusBadge('lost', '펌웨어 응답 중단');
+        if (window.showToast) {
+          window.showToast('⚠ USB 포트는 열려 있지만 CubeLink 응답이 중단되었습니다. 다시 연결해 주세요.', 'warn', 5000);
+        }
+        await window.fullCleanup({ silent: true });
+        setConnectionState('lost');
+      } finally {
+        window._connectionLossHandling = false;
+      }
+      return;
+    }
+
+    window._heartbeatBusy = true;
     try {
       const w = await window.acquireSerialWriter(window._serialPort, 300);
-      try { await w.write(new TextEncoder().encode('P\n')); }
+      try {
+        await w.write(new TextEncoder().encode('P\n'));
+        if (!window._pingOutstandingAt) window._pingOutstandingAt = Date.now();
+      }
       finally { try { w.releaseLock(); } catch(_){} }
     } catch(_) { /* 다른 곳이 writer 점유 중 — 다음 주기 재시도 */ }
+    finally { window._heartbeatBusy = false; }
   }, 1000);
 
 

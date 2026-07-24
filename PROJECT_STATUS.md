@@ -33,6 +33,9 @@ Last updated: 2026-07-24
 - Application version updated to `3.4.3`.
 - Static JavaScript syntax checks passed.
 - Electron directory packaging succeeded with web resources and native serial bindings.
+- A fresh assisted Windows installer was built locally at
+  `studio/electron/dist/Cubelink_Studio.exe`; the packaged web files match the
+  source and the Windows x64 native serial binding is present.
 - User manually launched the unpacked v3.4.3 application successfully.
 - Audited the canonical repository, historical `C:\Projects` sources, full
   backup, and Google Drive CubeLink technical-assets folder.
@@ -51,7 +54,9 @@ Last updated: 2026-07-24
 - Latest integration commit: `92db64a Integrate current CubeLink Studio and firmware`
 - Existing public release before the integration: `v3.4.2`
 - Verified unpacked executable: `studio/electron/dist/win-unpacked/CubeLink Studio.exe`
-- Portable packaging reached the NSIS stage but Codex could not download the helper because its network environment was restricted.
+- Verified assisted installer: `studio/electron/dist/Cubelink_Studio.exe`
+  (local validation candidate only; it is not code-signed, published, or
+  physically tested with the current firmware).
 - Automatic launch inside Codex caused GPU/cache permission failures; manual user launch worked.
 
 ## Not yet verified
@@ -67,6 +72,19 @@ Last updated: 2026-07-24
 - USB-only power stability under realistic servo loads
 
 ## Studio serial connection work in progress (2026-07-21)
+
+- The 2026-07-24 offline reliability pass serializes native connect/disconnect
+  transitions, verifies the selected COM path immediately before opening it,
+  and adds bounded open, close, write, and drain handling. A failed native
+  write now closes the broken connection instead of leaving a false-open port.
+- Studio now treats periodic `P/PONG` as a two-way health check after
+  initialization. If the COM handle remains open but valid firmware replies
+  stop for 4.5 seconds while idle, Studio closes the stale connection and
+  reports `펌웨어 응답 중단`. The watchdog is deliberately paused while block
+  runtime or safety motion owns the serial writer.
+- Electron Web Serial wrappers now remove their native status listener when
+  closed or disconnected, preventing stale wrappers from accumulating across
+  repeated reconnects.
 
 - Web UI now separates port-open, firmware-verification, safety-initialization,
   ready, lost, and failed states instead of calling an open port "connected".
@@ -110,9 +128,11 @@ Last updated: 2026-07-24
 - CubeLink Studio now requires v1.4.2 plus the exact
   `PARK_90_10_170_90` pose profile. This rejects v1.4.0/v1.4.1 and older
   v1.4.2 binaries that still park pin 10 at 10 degrees.
-  v1.4.2 compiles for the classic Nano old-bootloader target using 10,198 bytes
-  of flash (33%) and 383 bytes of RAM (18%). It is not uploaded, physically
-  tested, or deployed to the public web page.
+  After strict serial parsing was added, v1.4.2 compiles for the classic Nano
+  old-bootloader target using 11,256 bytes of flash (36%) and 394 bytes of RAM
+  (19%). Oversized lines are discarded through the delimiter, command formats
+  are exact, and unsupported motion/output targets return errors. It is not
+  uploaded, physically tested, or deployed to the public web page.
 - Added a hidden Studio-mediated joystick manual mode with no visible button.
   Enter `조이스틱수동` or `joystickmanual` in the serial command field to
   activate it after `실시간 준비 완료`; enter `조이스틱종료` or `joystickoff`

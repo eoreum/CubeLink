@@ -10,6 +10,11 @@ app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 
 let win, port, parser, lastPath = null;
+let connectionGeneration = 0;
+let serialTransition = Promise.resolve();
+const SERIAL_OPEN_TIMEOUT_MS = 8000;
+const SERIAL_CLOSE_TIMEOUT_MS = 2500;
+const SERIAL_WRITE_TIMEOUT_MS = 3000;
 // 창이 살아있을 때만 안전하게 메시지 전송
 function safeSend(channel, data) {
   if (win && !win.isDestroyed() && win.webContents && !win.webContents.isDestroyed()) {
@@ -51,23 +56,48 @@ function createWindow() {
 
 }
 
+function queueSerialTransition(task) {
+  const next = serialTransition.then(task, task);
+  serialTransition = next.catch(() => {});
+  return next;
+}
+
 function closeSerialPort() {
   return new Promise((resolve) => {
-    if (!port || !port.isOpen) {
-      port = null;
-      parser = null;
+    const closingPort = port;
+    connectionGeneration++;
+    port = null;
+    parser = null;
+
+    if (!closingPort) {
       resolve();
       return;
     }
 
-    const closingPort = port;
-    closingPort.close(() => {
-      if (port === closingPort) {
-        port = null;
-        parser = null;
-      }
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      closingPort.removeListener('close', finish);
       resolve();
-    });
+    };
+    const timer = setTimeout(() => {
+      try { closingPort.destroy(); } catch (_) {}
+      finish();
+    }, SERIAL_CLOSE_TIMEOUT_MS);
+
+    closingPort.once('close', finish);
+    try {
+      if (closingPort.isOpen) {
+        closingPort.close(() => finish());
+      } else {
+        // destroy() also cancels a native port that is still opening.
+        closingPort.destroy();
+      }
+    } catch (_) {
+      finish();
+    }
   });
 }
 
@@ -76,42 +106,87 @@ async function connectSerial(pathName) {
 
   lastPath = null;
   await closeSerialPort();
+
+  let availablePorts;
+  try {
+    availablePorts = await SerialPort.list();
+  } catch (error) {
+    return { ok: false, error: 'Unable to list serial ports: ' + error.message };
+  }
+  const selected = availablePorts.find(
+    candidate => String(candidate.path).toLowerCase() === String(pathName).toLowerCase()
+  );
+  if (!selected) {
+    return { ok: false, error: `Serial port ${pathName} is no longer available.` };
+  }
+
   lastPath = pathName;
 
   return new Promise((resolve) => {
     let settled = false;
+    const generation = ++connectionGeneration;
     const nextPort = new SerialPort({ path: pathName, baudRate: 115200, autoOpen: false });
     port = nextPort;
     parser = nextPort.pipe(new ReadlineParser({ delimiter: '\n' }));
-    parser.on('data', data => safeSend('serial-data', data));
+    parser.on('data', data => {
+      if (port === nextPort && generation === connectionGeneration) {
+        safeSend('serial-data', data);
+      }
+    });
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(openTimer);
+      resolve(result);
+    };
+    const failOpen = (message) => {
+      if (settled) return;
+      if (port === nextPort && generation === connectionGeneration) {
+        port = null;
+        parser = null;
+        connectionGeneration++;
+        safeSend('serial-status', 'error:' + message);
+      }
+      finish({ ok: false, error: message });
+      try { nextPort.destroy(); } catch (_) {}
+    };
+    const openTimer = setTimeout(
+      () => failOpen(`Timed out opening ${pathName}.`),
+      SERIAL_OPEN_TIMEOUT_MS
+    );
 
     nextPort.once('open', () => {
-      settled = true;
+      if (port !== nextPort || generation !== connectionGeneration) {
+        try { nextPort.close(); } catch (_) {}
+        finish({ ok: false, error: 'Serial connection was cancelled.' });
+        return;
+      }
       safeSend('serial-status', 'open');
-      resolve({ ok: true });
+      finish({ ok: true });
     });
 
     nextPort.on('error', (error) => {
-      safeSend('serial-status', 'error:' + error.message);
+      if (port === nextPort && generation === connectionGeneration) {
+        safeSend('serial-status', 'error:' + error.message);
+      }
       if (!settled) {
-        settled = true;
-        resolve({ ok: false, error: error.message });
+        failOpen(error.message);
       }
     });
 
     nextPort.on('close', () => {
-      safeSend('serial-status', 'closed');
-      if (port === nextPort) {
+      if (port === nextPort && generation === connectionGeneration) {
         port = null;
         parser = null;
+        connectionGeneration++;
+        safeSend('serial-status', 'closed');
       }
     });
 
     nextPort.open((error) => {
       if (error && !settled) {
-        settled = true;
-        safeSend('serial-status', 'error:' + error.message);
-        resolve({ ok: false, error: error.message });
+        failOpen(error.message);
       }
     });
   });
@@ -121,7 +196,7 @@ ipcMain.handle('list-ports', async () => {
   try { return await SerialPort.list(); }
   catch(e) { return []; }
 });
-ipcMain.handle('connect', (_e, p) => connectSerial(p));
+ipcMain.handle('connect', (_e, p) => queueSerialTransition(() => connectSerial(p)));
 ipcMain.handle('focus-window', () => {
   if (win && !win.isDestroyed()) {
     win.setAlwaysOnTop(true);
@@ -135,14 +210,33 @@ ipcMain.handle('write', (_e, data) => {
       resolve({ ok: false, error: 'Serial port is not open.' });
       return;
     }
-    port.write(data, (error) => {
+    const activePort = port;
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+    const failWrite = (message) => {
+      if (port === activePort) {
+        safeSend('serial-status', 'error:' + message);
+        try { activePort.destroy(); } catch (_) {}
+      }
+      finish({ ok: false, error: message });
+    };
+    const timer = setTimeout(() => {
+      failWrite('Serial write timed out.');
+    }, SERIAL_WRITE_TIMEOUT_MS);
+
+    activePort.write(data, (error) => {
       if (error) {
-        resolve({ ok: false, error: error.message });
+        failWrite(error.message);
         return;
       }
-      port.drain((drainError) => {
-        if (drainError) resolve({ ok: false, error: drainError.message });
-        else resolve({ ok: true });
+      activePort.drain((drainError) => {
+        if (drainError) failWrite(drainError.message);
+        else finish({ ok: true });
       });
     });
   });
@@ -150,7 +244,8 @@ ipcMain.handle('write', (_e, data) => {
 
 ipcMain.handle('disconnect', async () => {
   lastPath = null;
-  await closeSerialPort();
+  await queueSerialTransition(() => closeSerialPort());
+  safeSend('serial-status', 'closed');
   return { ok: true };
 });
 
@@ -158,7 +253,12 @@ ipcMain.handle('disconnect', async () => {
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => {
   lastPath = null;
-  try { if (port && port.isOpen) port.close(); } catch (_) {}
+  try {
+    if (port) {
+      if (port.isOpen) port.close();
+      else port.destroy();
+    }
+  } catch (_) {}
   app.quit();
 });
 
