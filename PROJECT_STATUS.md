@@ -1,6 +1,6 @@
 # CubeLink Current Status
 
-Last updated: 2026-07-23
+Last updated: 2026-07-24
 
 ## Durable planning records (2026-07-23)
 
@@ -108,6 +108,14 @@ Last updated: 2026-07-23
   v1.4.2 compiles for the classic Nano old-bootloader target using 10,098 bytes
   of flash (32%) and 383 bytes of RAM (18%). It is not uploaded, physically
   tested, or deployed to the public web page.
+- Added a hidden Studio-mediated joystick manual mode with no visible button.
+  Enter `조이스틱수동` or `joystickmanual` in the serial command field to
+  activate it after `실시간 준비 완료`; enter `조이스틱종료` or `joystickoff`
+  to stop it. Studio captures neutral centers, selects one dominant axis per
+  stick, moves at 1 degree per 50 ms, applies calibration offsets and v1.4.2
+  limits, and automatically exits for block execution, safe shutdown, or lost
+  safety/serial state. This path is not physically validated or publicly
+  deployed.
 - Firmware v1.4.1 now stages one shared image for both products: CubeLink Studio
   control remains available, while a power-only boot can enter standalone
   joystick control after neutral calibration and the deliberate two-stick

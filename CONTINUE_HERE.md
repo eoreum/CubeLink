@@ -48,6 +48,14 @@ degrees. Nano old-bootloader compilation passed on 2026-07-24. Controlled upload
 and physical testing are required before replacing the v1.4.1 image or updating
 the public Studio.
 
+The matching Studio source includes a hidden, Studio-mediated joystick manual
+mode. After `실시간 준비 완료`, keep both sticks neutral and enter
+`조이스틱수동` (or `joystickmanual`) in the serial command field. Exit with
+`조이스틱종료` (or `joystickoff`). There is no visible button. This mode sends
+normal Studio `S` commands, uses one dominant axis per stick, and automatically
+stops before block execution or safe shutdown. It is not deployed or physically
+validated yet.
+
 Test in this order:
 
 1. Connect the Arduino Nano by USB.
@@ -56,8 +64,10 @@ Test in this order:
 4. Move one servo at a time; record channel, requested angle, actual direction, reset, and jitter.
 5. Test USB disconnect and reconnect.
 6. Test both joysticks and the ultrasonic sensor.
-7. Compare physical servo angles with the 3D model.
-8. After successful testing, create `Cubelink_Studio.exe`, push the integration work, and publish `v3.4.3`.
+7. With both sticks neutral, enter `조이스틱수동`; verify one axis and one
+   servo at a time, then enter `조이스틱종료`.
+8. Compare physical servo angles with the 3D model.
+9. After successful testing, create `Cubelink_Studio.exe`, push the integration work, and publish `v3.4.3`.
 
 When a problem occurs, record:
 

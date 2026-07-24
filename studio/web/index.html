@@ -1492,6 +1492,20 @@ window.addEventListener('load', () => {
   const CMD_RESET   = ['초기화', 'reset', 'lock', '잠금'];
   const CMD_HELP    = ['help', '도움말', '?'];
   const CMD_VERSION = ['version', '버전', 'ver'];
+  const SECRET_JOY_ON  = ['조이스틱수동', '수동조종', 'joystickmanual', 'joymanual'];
+  const SECRET_JOY_OFF = ['조이스틱종료', '수동조종종료', 'joystickoff', 'joyoff'];
+  const JOY_DEADZONE = 120;
+  const JOY_AXIS_MARGIN = 35;
+  const JOY_STEP_MS = 50;
+
+  window._joystickManual = window._joystickManual || {
+    enabled: false,
+    timer: null,
+    busy: false,
+    centers: null,
+    previousAxis: { left: 0, right: 0 }
+  };
+  window._joystickSeen = window._joystickSeen || { 1: false, 2: false };
 
   function normalize(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ''); }
   function matches(input, list) {
@@ -1511,26 +1525,179 @@ window.addEventListener('load', () => {
     mon.scrollTop = mon.scrollHeight;
   }
 
+  function selectDominantAxis(dx, dy, previousAxis) {
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    if (ax < JOY_DEADZONE && ay < JOY_DEADZONE) return 0;
+    if (previousAxis === 1 && ax >= JOY_DEADZONE && ax + JOY_AXIS_MARGIN >= ay) return 1;
+    if (previousAxis === 2 && ay >= JOY_DEADZONE && ay + JOY_AXIS_MARGIN >= ax) return 2;
+    return ax >= ay ? (ax >= JOY_DEADZONE ? 1 : 0) : (ay >= JOY_DEADZONE ? 2 : 0);
+  }
+
+  function disableJoystickManual(reason, quiet) {
+    const state = window._joystickManual;
+    if (state.timer) clearInterval(state.timer);
+    state.timer = null;
+    state.enabled = false;
+    state.centers = null;
+    state.previousAxis = { left: 0, right: 0 };
+    if (!quiet) {
+      appendToMonitor('✓ 조이스틱 수동조종 종료' + (reason ? ' — ' + reason : ''), '#3498db');
+      window.showToast('🕹️ 조이스틱 수동조종 종료', 'info', 2500);
+    }
+  }
+  window.disableJoystickManual = disableJoystickManual;
+
+  function getManualServoChanges() {
+    const state = window._joystickManual;
+    const data = window.joystickData || {};
+    const left = data.left || {};
+    const right = data.right || {};
+    const centers = state.centers;
+    if (!centers) return [];
+
+    const dx1 = Number(left.x) - centers.left.x;
+    const dy1 = Number(left.y) - centers.left.y;
+    const dx2 = Number(right.x) - centers.right.x;
+    const dy2 = Number(right.y) - centers.right.y;
+    const axis1 = selectDominantAxis(dx1, dy1, state.previousAxis.left);
+    const axis2 = selectDominantAxis(dx2, dy2, state.previousAxis.right);
+    state.previousAxis.left = axis1;
+    state.previousAxis.right = axis2;
+
+    const angles = window.servoAngles = window.servoAngles || { 6:90, 9:90, 10:90, 11:90 };
+    const changes = [];
+    const add = (pin, delta, min, max) => {
+      if (!delta) return;
+      const current = Number.isFinite(Number(angles[pin])) ? Number(angles[pin]) : 90;
+      const next = Math.max(min, Math.min(max, Math.round(current + delta)));
+      if (next !== current) changes.push({ pin, logicalAngle: next, min, max });
+    };
+
+    if (axis1 === 2) {
+      add(6, dy1 < -JOY_DEADZONE ? -1 : (dy1 > JOY_DEADZONE ? 1 : 0), 10, 170);
+    } else if (axis1 === 1) {
+      add(9, dx1 < -JOY_DEADZONE ? 1 : (dx1 > JOY_DEADZONE ? -1 : 0), 10, 170);
+    }
+    if (axis2 === 2) {
+      add(11, dy2 < -JOY_DEADZONE ? 1 : (dy2 > JOY_DEADZONE ? -1 : 0), 50, 120);
+    } else if (axis2 === 1) {
+      add(10, dx2 < -JOY_DEADZONE ? -1 : (dx2 > JOY_DEADZONE ? 1 : 0), 10, 170);
+    }
+    return changes;
+  }
+
+  async function serviceJoystickManual() {
+    const state = window._joystickManual;
+    if (!state.enabled || state.busy) return;
+    const ready = window._serialPort && window._serialPort.writable &&
+                  window._connState === 'ready' &&
+                  window._cubeSafety && window._cubeSafety.initialized;
+    if (!ready || window._runtimeRunning) {
+      disableJoystickManual(ready ? '블록 실행 시작' : '연결 또는 안전 초기화 해제');
+      return;
+    }
+
+    const changes = getManualServoChanges();
+    if (!changes.length) return;
+    state.busy = true;
+    let writer = null;
+    try {
+      writer = await window.acquireSerialWriter(window._serialPort);
+      const commands = changes.map(change => {
+        const offset = window.getServoOffset ? Number(window.getServoOffset(change.pin)) || 0 : 0;
+        const physicalAngle = Math.max(change.min, Math.min(change.max, Math.round(change.logicalAngle + offset)));
+        return `S,${change.pin},${physicalAngle}\n`;
+      }).join('');
+      await writer.write(new TextEncoder().encode(commands));
+      for (const change of changes) window.servoAngles[change.pin] = change.logicalAngle;
+    } catch (error) {
+      console.warn('조이스틱 수동조종 전송 오류:', error);
+      disableJoystickManual('시리얼 전송 오류');
+    } finally {
+      try { if (writer) writer.releaseLock(); } catch (_) {}
+      state.busy = false;
+    }
+  }
+
+  function enableJoystickManual() {
+    const state = window._joystickManual;
+    if (state.enabled) {
+      appendToMonitor('조이스틱 수동조종이 이미 활성화되어 있습니다.', '#888');
+      return;
+    }
+    const ready = window._serialPort && window._serialPort.writable &&
+                  window._connState === 'ready' &&
+                  window._cubeSafety && window._cubeSafety.initialized;
+    if (!ready) {
+      appendToMonitor('조이스틱 수동조종 실패: 실시간 준비 완료 상태가 아닙니다.', '#e74c3c');
+      window.showToast('⚠ 먼저 로봇 연결과 안전 초기화를 완료하세요.', 'warn', 3500);
+      return;
+    }
+    if (window._runtimeRunning) {
+      appendToMonitor('조이스틱 수동조종 실패: 블록 프로그램이 실행 중입니다.', '#e74c3c');
+      return;
+    }
+    if (!window._joystickSeen[1] || !window._joystickSeen[2]) {
+      appendToMonitor('조이스틱 수동조종 실패: 두 조이스틱 값을 아직 받지 못했습니다.', '#e74c3c');
+      window.showToast('⚠ 두 조이스틱을 중립에 놓고 잠시 후 다시 입력하세요.', 'warn', 3500);
+      return;
+    }
+
+    const data = window.joystickData;
+    const centers = {
+      left:  { x:Number(data.left.x),  y:Number(data.left.y) },
+      right: { x:Number(data.right.x), y:Number(data.right.y) }
+    };
+    const centered = [centers.left.x, centers.left.y, centers.right.x, centers.right.y]
+      .every(value => Number.isFinite(value) && Math.abs(value - 512) < 180);
+    if (!centered) {
+      appendToMonitor('조이스틱 수동조종 실패: 스틱을 모두 중립에 놓고 다시 입력하세요.', '#e74c3c');
+      window.showToast('⚠ 조이스틱 중립 확인이 필요합니다.', 'warn', 3500);
+      return;
+    }
+
+    window.setActionMode('real', { silent:true });
+    state.centers = centers;
+    state.previousAxis = { left: 0, right: 0 };
+    state.enabled = true;
+    state.timer = setInterval(serviceJoystickManual, JOY_STEP_MS);
+    appendToMonitor('✓ 조이스틱 수동조종 활성화 — Studio 안전 제어 경유', '#2ecc71');
+    window.showToast('🕹️ 조이스틱 수동조종 활성화', 'success', 3000);
+  }
+
   function handleCommand(cmd) {
     if (!cmd) return;
     appendToMonitor('> ' + cmd, '#D4AF37');
 
     if (matches(cmd, SECRET_TWIN)) {
+      disableJoystickManual('디지털 트윈 모드 전환', true);
       window.unlockTwinMode();
       appendToMonitor('✓ 디지털 트윈 모드 활성화됨', '#2ecc71');
       return;
     }
+    if (matches(cmd, SECRET_JOY_ON)) {
+      enableJoystickManual();
+      return;
+    }
+    if (matches(cmd, SECRET_JOY_OFF)) {
+      disableJoystickManual();
+      return;
+    }
     if (matches(cmd, CMD_REAL)) {
+      disableJoystickManual('실물 전용 모드 전환', true);
       window.setActionMode('real');
       appendToMonitor('✓ 실물 전용 모드', '#2ecc71');
       return;
     }
     if (matches(cmd, CMD_SIM)) {
+      disableJoystickManual('그래픽 전용 모드 전환', true);
       window.setActionMode('sim');
       appendToMonitor('✓ 그래픽 전용 모드', '#2ecc71');
       return;
     }
     if (matches(cmd, CMD_RESET)) {
+      disableJoystickManual('모드 초기화', true);
       window.twinUnlocked = false;
       window.setActionMode('real', { silent:true });
       appendToMonitor('✓ 모드 초기화 — 실물 전용으로 복귀', '#3498db');
@@ -1608,7 +1775,21 @@ window.addEventListener('load', () => {
     const origParse = window.parseBoardLine;
     window.parseBoardLine = function(line) {
       if (!line) return;
-      const head = String(line).trim().split(',')[0];
+      const parts = String(line).trim().split(',');
+      const head = parts[0];
+      if (head === 'J1' || head === 'J2') {
+        const which = head === 'J1' ? 1 : 2;
+        const side = which === 1 ? 'left' : 'right';
+        const x = Number(parts[1]);
+        const y = Number(parts[2]);
+        const sw = Number(parts[3]);
+        if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(sw)) {
+          window.joystickData = window.joystickData ||
+            { left:{x:512,y:512,sw:0}, right:{x:512,y:512,sw:0} };
+          window.joystickData[side] = { x, y, sw };
+          window._joystickSeen[which] = true;
+        }
+      }
       const graphicMsgs = ['A'];
       if (graphicMsgs.includes(head) && !window.shouldUpdateGraphic()) return;
       return origParse.call(this, line);
@@ -1622,6 +1803,14 @@ window.addEventListener('load', () => {
     bindCommandInput();
     patchParseBoardLine();
     updateRunButton();
+    const btnRun = document.getElementById('btnRunRealtime');
+    const btnSafe = document.getElementById('btnSafeShutdown');
+    if (btnRun) btnRun.addEventListener('click', () => {
+      if (window._joystickManual.enabled) disableJoystickManual('블록 실행 시작');
+    }, true);
+    if (btnSafe) btnSafe.addEventListener('click', () => {
+      if (window._joystickManual.enabled) disableJoystickManual('안전 종료 시작', true);
+    }, true);
     console.log('🔀 v2.8.9 동작 모드 + 명령어 시스템 로드됨 (기본: real)');
     console.log('💡 강사용: 시리얼 모니터 입력창에 비밀 단어를 입력하면 디지털 트윈 해제');
   }
