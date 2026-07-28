@@ -36,16 +36,17 @@ only on pins 6, 9, 10, and 11; digital output is accepted only on LED pin 13.
 Malformed, unsupported, or oversized lines return an `ERR,...` response and
 cannot be reinterpreted as a partial motion command.
 
-The current candidate appends `PARK_90_10_170_90` to `READY` and `PONG`.
+The current candidate appends `PARK_90_30_160_90` to `READY` and `PONG`.
 Matching Studio builds require this pose profile and reject older v1.4.2
 binaries whose pin 10 storage target may still be 10 degrees.
 
-The v1.4.1 firmware currently uploaded to the development Nano combines the
-Studio safety flow with a power-only standalone joystick path. The v1.4.2
-source candidate adds Studio/standalone ownership locking, inactivity
-park-and-detach, sequential Studio initialization, and conservative 10..170
-degree arm limits. v1.4.2 compiles successfully for the classic Arduino Nano
-ATmega328P old bootloader target. The 2026-07-24 serial-hardening build uses
-11,256 bytes of flash (36%) and 394 bytes of RAM (19%), but it must still be
-uploaded and physically validated before it can replace v1.4.1. Do not treat
-either version as released production firmware.
+The development Nano has responded to the local Studio as v1.4.2 with the
+`PARK_90_30_160_90` profile after being programmed through an Uno used as an ISP
+programmer. The v1.4.2 source adds Studio/standalone ownership locking, inactivity
+park-and-detach, sequential Studio initialization, and conservative limits of
+base 10..170, lower 30..170, and upper 10..160 degrees. v1.4.2 compiles
+successfully for the classic Arduino Nano
+ATmega328P target. A later MiniCore `bootloader=no_bootloader` compile used
+11,164 bytes of flash (34%) and 410 bytes of RAM (20%). Repeated reconnect and
+full physical motion testing are still required. Do not treat this image as
+released production firmware.

@@ -11,8 +11,8 @@
  *   - Standalone inactivity parks and detaches all servos instead of only
  *     leaving joystick mode.
  *   - Studio initialization attaches and moves one axis at a time.
- *   - Arm joints use conservative 10..170 degree software limits pending
- *     physical end-stop measurement.
+ *   - Arm joints use conservative software limits pending physical end-stop
+ *     measurement: base 10..170, lower 30..170, upper 10..160 degrees.
  *
  *  v1.4.1 standalone behavior:
  *   - Power-only boot keeps every servo detached and stationary.
@@ -74,8 +74,8 @@ const uint8_t PIN_JOY2_SW  = 7;
 // ═══════════════ 관절별 안전 각도 제한 ═══════════════
 //  ★ 실험하면서 이 값만 고치면 됩니다 (실시간·자율 공통) ★
 const int BASE_MIN    = 10,  BASE_MAX    = 170;
-const int LOWER_MIN   = 10,  LOWER_MAX   = 170;
-const int UPPER_MIN   = 10,  UPPER_MAX   = 170;
+const int LOWER_MIN   = 30,  LOWER_MAX   = 170;
+const int UPPER_MIN   = 10,  UPPER_MAX   = 160;
 const int GRIPPER_MIN = 50,  GRIPPER_MAX = 120;  // 그리퍼: 조사 중(보수값)
 // ════════════════════════════════════════════════════
 
@@ -89,13 +89,13 @@ struct SafetyState {
   uint8_t checksum;
 };
 
-// Storage geometry changed when pin 10 moved from 10 to 170 degrees. Changing
-// the magic invalidates EEPROM SAFE records written for the former pose.
-const uint16_t SAFETY_MAGIC = 0x4350;
+// Storage geometry changed when pins 9 and 10 moved to 30 and 160 degrees.
+// Changing the magic invalidates EEPROM SAFE records written for the former pose.
+const uint16_t SAFETY_MAGIC = 0x4351;
 const int SAFETY_EEPROM_ADDRESS = 0;
 const int PARK_BASE = 90;
-const int PARK_LOWER = 10;
-const int PARK_UPPER = 170;
+const int PARK_LOWER = 30;
+const int PARK_UPPER = 160;
 const int PARK_GRIPPER = 90;
 SafetyState safetyState;
 bool servosActive = false;
@@ -284,7 +284,7 @@ void handleCommand(const char* line) {
     studioSessionActive = true;
     Serial.print(F("PONG,CUBELINK,v1.4.2,"));
     Serial.print(safetyState.safelyParked ? F("SAFE") : F("RECOVERY_REQUIRED"));
-    Serial.println(F(",PARK_90_10_170_90"));
+    Serial.println(F(",PARK_90_30_160_90"));
   }
   else if (strcmp(line, "I") == 0) {
     studioSessionActive = true;
@@ -812,7 +812,14 @@ void attachAtAngle(Servo& servo, uint8_t pin, int angle) {
   delay(150);
 }
 
-void smoothServoTo(Servo& servo, uint8_t pin, int& current, int target, int stepDelayMs) {
+void smoothServoTo(
+  Servo& servo,
+  uint8_t pin,
+  int& current,
+  int target,
+  int stepDelayMs,
+  int settleDelayMs
+) {
   target = clampAngle(pin, target);
   while (current != target) {
     current += (current < target) ? 1 : -1;
@@ -820,7 +827,7 @@ void smoothServoTo(Servo& servo, uint8_t pin, int& current, int target, int step
     lastAngle[pin] = current;
     delay(stepDelayMs);
   }
-  delay(120);
+  delay(settleDelayMs);
 }
 
 void initializeFromPark() {
@@ -841,17 +848,19 @@ void initializeFromPark() {
   curGripper = PARK_GRIPPER;
   // Attach and move one axis before energizing the next one. Previously all
   // four axes were attached before the first controlled move.
-  attachAtAngle(servoBase, PIN_BASE, curBase);
-  smoothServoTo(servoBase, PIN_BASE, curBase, 90, 20);
+  // Initialization order is mechanically significant: move pin 10 to neutral
+  // first, wait 500 ms after it arrives, and only then move pin 9.
+  attachAtAngle(servoUpper, PIN_UPPER, curUpper);
+  smoothServoTo(servoUpper, PIN_UPPER, curUpper, 90, 30, 500);
 
   attachAtAngle(servoLower, PIN_LOWER, curLower);
-  smoothServoTo(servoLower, PIN_LOWER, curLower, 90, 30);
+  smoothServoTo(servoLower, PIN_LOWER, curLower, 90, 30, 120);
 
-  attachAtAngle(servoUpper, PIN_UPPER, curUpper);
-  smoothServoTo(servoUpper, PIN_UPPER, curUpper, 90, 30);
+  attachAtAngle(servoBase, PIN_BASE, curBase);
+  smoothServoTo(servoBase, PIN_BASE, curBase, 90, 20, 120);
 
   attachAtAngle(servoGripper, PIN_GRIPPER, curGripper);
-  smoothServoTo(servoGripper, PIN_GRIPPER, curGripper, 90, 20);
+  smoothServoTo(servoGripper, PIN_GRIPPER, curGripper, 90, 20, 120);
   servosActive = true;
   Serial.println(F("INIT_OK"));
 }
@@ -863,10 +872,11 @@ void parkAndShutdown() {
   }
   if (autoMode) disarmAuto();
 
-  smoothServoTo(servoBase, PIN_BASE, curBase, PARK_BASE, 20);
-  smoothServoTo(servoGripper, PIN_GRIPPER, curGripper, PARK_GRIPPER, 20);
-  smoothServoTo(servoLower, PIN_LOWER, curLower, PARK_LOWER, 30);
-  smoothServoTo(servoUpper, PIN_UPPER, curUpper, PARK_UPPER, 30);
+  // Parking order is mechanically significant: 6 -> 11 -> 9 -> 10.
+  smoothServoTo(servoBase, PIN_BASE, curBase, PARK_BASE, 20, 120);
+  smoothServoTo(servoGripper, PIN_GRIPPER, curGripper, PARK_GRIPPER, 20, 120);
+  smoothServoTo(servoLower, PIN_LOWER, curLower, PARK_LOWER, 30, 120);
+  smoothServoTo(servoUpper, PIN_UPPER, curUpper, PARK_UPPER, 30, 120);
   setSafelyParked(true);
   servoBase.detach();
   servoLower.detach();
@@ -880,5 +890,5 @@ void parkAndShutdown() {
 void sendReady() {
   Serial.print(F("READY,CUBELINK,v1.4.2,"));
   Serial.print(safetyState.safelyParked ? F("SAFE") : F("RECOVERY_REQUIRED"));
-  Serial.println(F(",PARK_90_10_170_90"));
+  Serial.println(F(",PARK_90_30_160_90"));
 }

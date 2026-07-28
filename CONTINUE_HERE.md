@@ -4,6 +4,10 @@ Durable product decisions and the future modular roadmap are recorded in
 `docs/DECISION_LOG.md` and `docs/PRODUCT_ROADMAP.md`. Read them before making
 power, connection, integrated-board, car, omni-wheel, or product-scope choices.
 
+Laptop continuation is documented in `LAPTOP_HANDOFF.md`. The intended handoff
+branch is `agent/v344-laptop-handoff`; use the Drive source archive as the
+fallback if GitHub authentication is unavailable while traveling.
+
 Repository audit update (2026-07-19): work only from
 `C:\Users\dscom\Documents\Codex\CubeLink`. The active firmware is
 `firmware\arduino-nano\CubeLinkBridge\CubeLinkBridge.ino`; it is populated and is not the empty
@@ -18,7 +22,11 @@ safety initialization flow and must not be used for v1.4.1 tests. After
 connecting, wait for the button text `실시간 준비 완료` before running a
 physical program.
 
-Physical hardware validation of CubeLink Studio v3.4.3 is in progress. COM3 connection, USB unplug/replug recovery, real-time servo direction, both joysticks, and the ultrasonic sensor passed. Severe servo jitter remains, especially on pin 9 (lower-arm MG90S), so v3.4.3 must not be released yet.
+Physical hardware validation of CubeLink Studio is in progress. Earlier v3.4.3
+tests passed COM3 connection, USB unplug/replug recovery, real-time servo
+direction, both joysticks, and the ultrasonic sensor. Severe servo jitter
+remains, especially on pin 9 (lower-arm MG90S), so no new public release should
+be published yet.
 
 New confirmed product requirement: production CubeLink hardware must work only with CubeLink Studio real-time execution; CubeLink Studio must reject ordinary Uno/Nano boards; and ordinary Arduino tools must not be an end-user upload path for CubeLink production units. Do not treat the current `READY,CUBELINK` string as secure authentication. Define a production authentication/provisioning architecture before claiming this restriction is enforced.
 
@@ -40,29 +48,42 @@ now passes with the Arduino CLI for the Nano old-bootloader target, but every
 firmware build must still be tested with the arm supported. Do not set
 production lock bits during development testing.
 
-Firmware v1.4.2 is the next source candidate and has not been uploaded. It locks
+Firmware v1.4.2 is the current development image and was uploaded to the Nano
+with the Uno used as an ISP programmer. It locks
 out standalone joystick arming after any valid Studio protocol command, performs
 a full park-and-detach after 30 seconds of standalone inactivity, initializes
-Studio axes sequentially, and limits base/lower/upper commands to 10..170
-degrees. Nano old-bootloader compilation passed on 2026-07-24. Controlled upload
-and physical testing are required before replacing the v1.4.1 image or updating
-the public Studio.
+Studio axes sequentially, and limits base to 10..170, lower to 30..170, and
+upper to 10..160 degrees. Nano old-bootloader compilation passed on 2026-07-26,
+and the local v3.4.4 Studio reached COM3 real-time ready with the required
+`PARK_90_30_160_90` handshake. Full physical motion and repeated reconnect
+testing are still required before updating the public Studio.
 
-The local offline Studio now has hardened native COM transitions, explicit
+The local offline Studio v3.4.4 now has hardened native COM transitions, explicit
 open/write timeouts, strict selected-port revalidation, stale listener cleanup,
 and a two-way `P/PONG` health check. A fresh local assisted installer exists at
 `studio\electron\dist\Cubelink_Studio.exe`, includes the Windows x64 native
-serial binding, and contains web files matching the current source. It is
-unsigned, not published, and has not yet passed the current v1.4.2 physical
-USB/servo test, so it is a validation candidate rather than a release.
+serial binding, and contains web files matching the current source. It was
+rebuilt and packaged-app checked on 2026-07-28 with SHA-256
+`AE5298243C352140332D8ECF760DB8F254B5335A391D608D8CA244B99F9E3F1D`.
+It adds a working in-app Blockly variable prompt, stable variable execution and
+C++ naming, serial-transition keyboard-focus recovery, and a one-time cleanup of
+legacy mission workspace data. It is uploaded to Drive as
+`Cubelink_Studio_v3.4.4_TEST.exe` under file ID
+`1MDFHVSWecuWrD5Cm5KdK7w3-jmBPftvg`. It is unsigned and has not yet passed the
+final repeated-reconnect plus physical USB/servo test, so it is a validation
+candidate rather than a public release.
 
-The pin 10 upper-arm servo mounting orientation has changed. Its storage target
-is now 170 degrees, not 10 degrees. Firmware initialization/parking and Studio
-recovery/safe shutdown must use the shared pose: pin 6=90, pin 9=10,
-pin 10=170, pin 11=90.
+The current joint limits are pin 9=30..170 degrees and pin 10=10..160 degrees.
+Firmware initialization/parking and Studio recovery/safe shutdown must use the
+shared pose: pin 6=90, pin 9=30, pin 10=160, pin 11=90. During Studio safety
+initialization, pin 10 must reach 90 degrees first; firmware then waits 500 ms
+before moving pin 9 to 90 degrees. During full parking, the required sequence is
+pin 6 to 90 degrees, pin 11 to 90 degrees, pin 9 to 30 degrees, and pin 10 to
+160 degrees. Each axis reaches its target before the next one moves. Power-on
+alone still leaves servos disabled.
 
 After a mixed-version test made pin 10 move to 170 and then back to 10, the
-protocol now includes pose profile `PARK_90_10_170_90`. The local Studio must
+protocol now includes pose profile `PARK_90_30_160_90`. The local Studio must
 reject every firmware response without that exact profile. Studio safe shutdown
 must send only `K`; firmware alone owns physical parking. Real-time execution
 must also lock the center Blockly workspace until execution stops. The firmware
@@ -93,7 +114,8 @@ Test in this order:
 7. With both sticks neutral, enter `조이스틱수동`; verify one axis and one
    servo at a time, then enter `조이스틱종료`.
 8. Compare physical servo angles with the 3D model.
-9. After successful testing, create `Cubelink_Studio.exe`, push the integration work, and publish `v3.4.3`.
+9. After successful testing, push the integration work and publish a versioned
+   release; do not publish v3.4.4 before the reconnect and servo tests pass.
 
 When a problem occurs, record:
 
@@ -105,4 +127,5 @@ When a problem occurs, record:
 - Whether Nano reset or Windows disconnected USB
 - Which servo(s) were moving
 
-Do not replace the public v3.4.2 release until v3.4.3 hardware testing passes. Publishing a latest release immediately changes the web download target.
+Do not replace the public v3.4.2 release until v3.4.4 hardware testing passes.
+Publishing a latest release immediately changes the web download target.

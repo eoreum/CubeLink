@@ -199,8 +199,11 @@ ipcMain.handle('list-ports', async () => {
 ipcMain.handle('connect', (_e, p) => queueSerialTransition(() => connectSerial(p)));
 ipcMain.handle('focus-window', () => {
   if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore();
+    if (!win.isVisible()) win.show();
     win.setAlwaysOnTop(true);
     win.focus();
+    if (win.webContents && !win.webContents.isDestroyed()) win.webContents.focus();
     win.setAlwaysOnTop(false);
   }
 });

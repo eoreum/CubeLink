@@ -14,7 +14,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="CUBELINK">
 
-  <title>CubeLink Studio v3.4.3 · The Pinnacle of Robot Education</title>
+  <title>CubeLink Studio v3.4.4 · The Pinnacle of Robot Education</title>
 
   <!-- SEO -->
   <meta name="description" content="CUBELINK Studio - 학생을 위한 무료 로봇팔 블록 코딩 학습 도구. 9단계 미션, 3D 시뮬레이터, 아두이노 실시간 제어를 한 곳에서.">
@@ -75,7 +75,7 @@
            onerror="this.style.display='none'; this.parentNode.textContent='Eoreum';">
     </div>
 
-    <div class="brand-title">CubeLink Studio<span class="brand-version">v3.4.3</span></div>
+    <div class="brand-title">CubeLink Studio<span class="brand-version">v3.4.4</span></div>
   </div>
 
   <div class="header-actions">
@@ -488,7 +488,7 @@ window.parseBoardLine = function(line) {
     const safetyState = p[3] || 'UNKNOWN';
     const poseProfile = p[4] || '';
     const requiredVersion = 'v1.4.2';
-    const requiredPoseProfile = 'PARK_90_10_170_90';
+    const requiredPoseProfile = 'PARK_90_30_160_90';
     if (version !== requiredVersion || poseProfile !== requiredPoseProfile) {
       window._cubeSafety.state = 'INCOMPATIBLE';
       window._cubeSafety.initialized = false;
@@ -498,7 +498,7 @@ window.parseBoardLine = function(line) {
         : '보관 자세 프로필 불일치';
       window.updatePortStatusBadge('failed', `호환되지 않는 펌웨어: ${detail}`);
       if (window.showToast) {
-        window.showToast('⚠ 10번=170° 보관 자세가 포함된 최신 v1.4.2 펌웨어를 다시 업로드하세요.', 'warn', 6000);
+        window.showToast('⚠ 9번=30°, 10번=160° 보관 자세가 포함된 최신 v1.4.2 펌웨어를 다시 업로드하세요.', 'warn', 6000);
       }
       return;
     }
@@ -562,6 +562,39 @@ window.updatePortStatusBadge = function(state, detail) {
   badge.textContent = `${device} · ${detail || labels[state] || state}`;
   badge.style.borderColor = colors[state] || '#555';
   badge.style.color = colors[state] || '#ddd';
+};
+
+window.restoreStudioInputFocus = function(reason) {
+  clearTimeout(window._restoreStudioFocusTimer);
+  window._restoreStudioFocusTimer = setTimeout(async () => {
+    try {
+      const active = document.activeElement;
+      if (active && active !== document.body && typeof active.blur === 'function') active.blur();
+      if (typeof Blockly !== 'undefined') {
+        if (Blockly.WidgetDiv && typeof Blockly.WidgetDiv.hide === 'function') Blockly.WidgetDiv.hide();
+        if (Blockly.DropDownDiv && typeof Blockly.DropDownDiv.hideWithoutAnimation === 'function') {
+          Blockly.DropDownDiv.hideWithoutAnimation();
+        }
+      }
+      window.focus();
+      if (window.cubelink && window.cubelink.focusWindow) await window.cubelink.focusWindow();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const ws = window.workspace ||
+          (typeof Blockly !== 'undefined' && typeof Blockly.getMainWorkspace === 'function'
+            ? Blockly.getMainWorkspace()
+            : null);
+        const svg = ws && ws.getParentSvg ? ws.getParentSvg() : null;
+        if (svg) {
+          if (!svg.hasAttribute('tabindex')) svg.setAttribute('tabindex', '-1');
+          svg.focus({ preventScroll: true });
+          if (typeof Blockly.svgResize === 'function') Blockly.svgResize(ws);
+        }
+        console.log('⌨️ Blockly 입력 포커스 복구:', reason || 'serial transition');
+      }));
+    } catch (e) {
+      console.warn('Blockly 입력 포커스 복구 실패:', e.message);
+    }
+  }, 80);
 };
 
 window.setConnectionState = function(state) {
@@ -644,6 +677,8 @@ window.fullCleanup = async function(opts) {
     }
   } finally {
     window._cleaningUp = false;            // 어떤 경우든 플래그 해제
+    if (typeof window.hideRunLock === 'function') window.hideRunLock();
+    window.restoreStudioInputFocus('serial cleanup');
   }
 };
 
@@ -689,6 +724,7 @@ async function chooseElectronPort() {
     cancel.style.cssText = 'margin-top:10px;padding:8px 18px;border:0;border-radius:6px;background:#555;color:white;cursor:pointer;float:right;';
     cancel.addEventListener('click', () => {
       overlay.remove();
+      window.restoreStudioInputFocus('port chooser cancelled');
       reject(new Error('USER_CANCELLED'));
     });
     panel.appendChild(cancel);
@@ -805,6 +841,7 @@ window.startCubelinkReader = async function(port) {
   let buf = '';
   console.log('🎧 CUBELINK 리더 시작');
   setConnectionState('portOpen');
+  window.restoreStudioInputFocus('serial port opened');
   if (window._handshakeTimer) clearTimeout(window._handshakeTimer);
   window._handshakeTimer = setTimeout(() => {
     if (!window._cubeSafety.initialized && window._connState === 'portOpen') {
@@ -997,10 +1034,15 @@ window.addEventListener('load', () => {
         const port = await getCleanPort(false);
         await window.startCubelinkReader(port);
       } catch(e) {
-        if (e.message === 'USER_CANCELLED') { setConnectionState('idle'); return; }
+        if (e.message === 'USER_CANCELLED') {
+          setConnectionState('idle');
+          window.restoreStudioInputFocus('connect cancelled');
+          return;
+        }
         console.warn('연결 실패:', e.message);
         setConnectionState('failed');
         showConnectionTroubleshoot(e.message);
+        window.restoreStudioInputFocus('connect failed');
       }
     }, true);
   }
@@ -1033,6 +1075,7 @@ window.addEventListener('load', () => {
       } catch(err2) {
         console.warn('2차 시도도 실패:', err2.message);
         setConnectionState('failed');
+        window.restoreStudioInputFocus('automatic reconnect failed');
       }
     }
   });
@@ -1047,6 +1090,7 @@ window.addEventListener('load', () => {
     if (typeof window.showToast === 'function') {
       window.showToast('⚠️ USB 분리됨 — 재삽입을 기다리는 중', 'warn', 3000);
     }
+    window.restoreStudioInputFocus('USB disconnected');
   });
 
   /* v2.8.9: 페이지 로드 시 자동 연결 비활성화 — 사용자가 [연결] 버튼을 직접 눌러야 함 */
@@ -1632,12 +1676,12 @@ window.addEventListener('load', () => {
     if (axis1 === 2) {
       add(6, dy1 < -JOY_DEADZONE ? -1 : (dy1 > JOY_DEADZONE ? 1 : 0), 10, 170);
     } else if (axis1 === 1) {
-      add(9, dx1 < -JOY_DEADZONE ? 1 : (dx1 > JOY_DEADZONE ? -1 : 0), 10, 170);
+      add(9, dx1 < -JOY_DEADZONE ? 1 : (dx1 > JOY_DEADZONE ? -1 : 0), 30, 170);
     }
     if (axis2 === 2) {
       add(11, dy2 < -JOY_DEADZONE ? 1 : (dy2 > JOY_DEADZONE ? -1 : 0), 50, 120);
     } else if (axis2 === 1) {
-      add(10, dx2 < -JOY_DEADZONE ? -1 : (dx2 > JOY_DEADZONE ? 1 : 0), 10, 170);
+      add(10, dx2 < -JOY_DEADZONE ? -1 : (dx2 > JOY_DEADZONE ? 1 : 0), 10, 160);
     }
     return changes;
   }
@@ -1768,7 +1812,7 @@ window.addEventListener('load', () => {
       return;
     }
     if (matches(cmd, CMD_VERSION)) {
-      appendToMonitor('CubeLink Studio v3.4.3', '#3498db');
+      appendToMonitor('CubeLink Studio v3.4.4', '#3498db');
       return;
     }
 

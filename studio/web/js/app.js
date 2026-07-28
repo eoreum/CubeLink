@@ -355,11 +355,22 @@
 
   /* ────────────────────────────────────────────────────────────────
      [3] WorkspaceStorage — 미션별 작업물 자동 저장/복원
-         localStorage 키: cubelink_ws_<missionId>
+         localStorage 키: cubelink_ws_v344_<missionId>
      ──────────────────────────────────────────────────────────────── */
   const WorkspaceStorage = {
-    KEY_PREFIX: 'cubelink_ws_',
+    KEY_PREFIX: 'cubelink_ws_v344_',
+    LEGACY_PREFIX: 'cubelink_ws_',
+    MIGRATION_KEY: 'cubelink_workspace_schema_v344',
     saveTimer: null,
+
+    migrateLegacyData() {
+      if (localStorage.getItem(this.MIGRATION_KEY) === '1') return;
+      Object.keys(localStorage)
+        .filter(k => k.startsWith(this.LEGACY_PREFIX) && !k.startsWith(this.KEY_PREFIX))
+        .forEach(k => localStorage.removeItem(k));
+      localStorage.setItem(this.MIGRATION_KEY, '1');
+      console.log('🧹 이전 시험 배포본의 작업공간 저장값을 정리했습니다.');
+    },
 
     scheduleSave(missionId) {
       if (!missionId) return;
@@ -598,6 +609,66 @@ checkGraduation() {
   window._userVars = window._userVars || {};
   window._ultrasonicValue = window._ultrasonicValue != null ? window._ultrasonicValue : 30;
 
+  function installBlocklyDialogs() {
+    if (!Blockly.dialog || typeof Blockly.dialog.setPrompt !== 'function') return;
+    Blockly.dialog.setPrompt((message, defaultValue, callback) => {
+      document.getElementById('cubelinkBlocklyPrompt')?.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'cubelinkBlocklyPrompt';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:120000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;';
+
+      const panel = document.createElement('div');
+      panel.style.cssText = 'width:min(430px,90vw);background:#181b20;border:1px solid #D4AF37;border-radius:12px;padding:22px;color:white;box-shadow:0 18px 50px rgba(0,0,0,.55);';
+
+      const label = document.createElement('label');
+      label.textContent = message || '이름을 입력하세요.';
+      label.style.cssText = 'display:block;margin-bottom:12px;color:#D4AF37;font-size:16px;font-weight:700;';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = defaultValue || '';
+      input.autocomplete = 'off';
+      input.spellcheck = false;
+      input.style.cssText = 'box-sizing:border-box;width:100%;padding:11px 12px;border:1px solid #666;border-radius:7px;background:#0f1115;color:white;font-size:16px;outline:none;';
+
+      const actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;margin-top:16px;';
+      const cancel = document.createElement('button');
+      cancel.textContent = '취소';
+      cancel.style.cssText = 'padding:8px 18px;border:0;border-radius:6px;background:#555;color:white;cursor:pointer;';
+      const ok = document.createElement('button');
+      ok.textContent = '확인';
+      ok.style.cssText = 'padding:8px 18px;border:0;border-radius:6px;background:#D4AF37;color:#111;font-weight:700;cursor:pointer;';
+      actions.append(cancel, ok);
+      panel.append(label, input, actions);
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+
+      let finished = false;
+      const finish = (value) => {
+        if (finished) return;
+        finished = true;
+        overlay.remove();
+        callback(value);
+        if (window.restoreStudioInputFocus) window.restoreStudioInputFocus('Blockly dialog closed');
+      };
+      cancel.addEventListener('click', () => finish(null));
+      ok.addEventListener('click', () => finish(input.value));
+      overlay.addEventListener('mousedown', (e) => {
+        if (e.target === overlay) finish(null);
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); finish(input.value); }
+        if (e.key === 'Escape') { e.preventDefault(); finish(null); }
+      });
+      setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 0);
+    });
+  }
+
   /* ============================================================
      초음파 슬라이더 → window._ultrasonicValue 자동 동기화
      ============================================================ */
@@ -652,6 +723,9 @@ checkGraduation() {
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    WorkspaceStorage.migrateLegacyData();
+    installBlocklyDialogs();
+
     if (window.Sim && typeof window.Sim.init === 'function') {
       window.Sim.init();
     }
@@ -959,6 +1033,14 @@ checkGraduation() {
      ★ 값 평가 엔진 (evalValue) ★
      blocks.js 실제 필드명 기준으로 전면 보정 (v2.7.2)
      ============================================================ */
+  function runtimeVariableKey(block) {
+    const field = block && block.getField && block.getField('VAR');
+    const model = field && typeof field.getVariable === 'function' ? field.getVariable() : null;
+    return model && typeof model.getId === 'function'
+      ? model.getId()
+      : (field ? field.getText() : block.getFieldValue('VAR'));
+  }
+
   function evalValue(block) {
     if (!block) return 0;
     const t = block.type;
@@ -1118,8 +1200,8 @@ checkGraduation() {
 
       // ─── 변수 ───
       if (t === 'variables_get') {
-        const name = block.getField('VAR') ? block.getField('VAR').getText() : block.getFieldValue('VAR');
-        return (window._userVars[name] != null) ? window._userVars[name] : 0;
+        const key = runtimeVariableKey(block);
+        return (window._userVars[key] != null) ? window._userVars[key] : 0;
       }
 
       // ─── 폴백: NUM 필드가 있으면 숫자로 ───
@@ -1178,6 +1260,7 @@ checkGraduation() {
     }
 
 
+    window._userVars = {};
     window._runtimeRunning = true;
 
     const writer = useSerial
@@ -1505,21 +1588,19 @@ async function sendServo(pin, angle) {
 
         // ═══ 변수 설정 ═══
         if (t === 'variables_set') {
-          const field = b.getField('VAR');
-          const name  = field ? field.getText() : b.getFieldValue('VAR');
+          const key = runtimeVariableKey(b);
           const inner = b.getInputTargetBlock('VALUE');
-          window._userVars[name] = inner ? evalValue(inner) : 0;
+          window._userVars[key] = inner ? evalValue(inner) : 0;
           return;
         }
 
         // ═══ 변수 증감 ═══
         if (t === 'math_change') {
-          const field = b.getField('VAR');
-          const name  = field ? field.getText() : b.getFieldValue('VAR');
+          const key = runtimeVariableKey(b);
           const inner = b.getInputTargetBlock('DELTA');
           const delta = inner ? parseFloat(evalValue(inner)) || 0 : 0;
-          const cur   = window._userVars[name] != null ? window._userVars[name] : 0;
-          window._userVars[name] = cur + delta;
+          const cur   = window._userVars[key] != null ? window._userVars[key] : 0;
+          window._userVars[key] = cur + delta;
           return;
         }
         // ═══ 사용자 정의 함수 호출 (반환값 없음) ═══
@@ -1907,7 +1988,7 @@ function setupIntroPage() {
       // 실제 주차 동작과 EEPROM SAFE 기록은 펌웨어의 K 명령 한 곳에서만
       // 수행한다. Studio가 먼저 S 명령으로 움직이면 서로 다른 펌웨어
       // 보관각과 충돌하여 한 축이 두 번 움직일 수 있다.
-      const safePos = [ [6, 90], [11, 90], [9, 10], [10, 170] ];
+      const safePos = [ [6, 90], [11, 90], [9, 30], [10, 160] ];
       let writer = null;
       try {
         writer = await (window.acquireSerialWriter

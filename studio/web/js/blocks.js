@@ -67,8 +67,42 @@ Arduino.scrub_ = (b, code) => code + (b.nextConnection && b.nextConnection.targe
 // 라이브러리 include 및 전역 변수 동적 주입용 박스
 window.headerExtras = { includes: new Set(), globals: new Set(), helpers: new Set() };
 window.resetHeaders = function() {
-  window.headerExtras = { includes: new Set(), globals: new Set(), helpers: new Set() };
+  window.headerExtras = {
+    includes: new Set(),
+    globals: new Set(),
+    helpers: new Set(),
+    variableNames: new Map(),
+    usedVariableNames: new Set()
+  };
 };
+
+function arduinoVariableName(block) {
+  if (!window.headerExtras.variableNames) window.headerExtras.variableNames = new Map();
+  if (!window.headerExtras.usedVariableNames) window.headerExtras.usedVariableNames = new Set();
+  const field = block.getField('VAR');
+  const model = field && typeof field.getVariable === 'function' ? field.getVariable() : null;
+  const id = model && typeof model.getId === 'function'
+    ? model.getId()
+    : (block.getFieldValue('VAR') || (field && field.getText()) || 'variable');
+  if (window.headerExtras.variableNames.has(id)) return window.headerExtras.variableNames.get(id);
+
+  const label = (field && field.getText()) || 'variable';
+  let stem = String(label)
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  if (!stem || /^[0-9]/.test(stem)) stem = 'value_' + stem;
+  let name = 'var_' + (stem || 'value');
+  if (window.headerExtras.usedVariableNames.has(name)) {
+    let hash = 0;
+    for (const ch of String(id)) hash = ((hash * 31) + ch.charCodeAt(0)) >>> 0;
+    name += '_' + hash.toString(36);
+  }
+  window.headerExtras.variableNames.set(id, name);
+  window.headerExtras.usedVariableNames.add(name);
+  return name;
+}
 
 // ----- 기본 구조 & 제어 번역 로직 -----
 Arduino.forBlock['cubelink_delay'] = b => `  delay(${b.getFieldValue('MS')});\n`;
@@ -92,15 +126,19 @@ Arduino.forBlock['math_arithmetic'] = b => {
 };
 
 // ----- 변수 번역 로직 -----
-Arduino.forBlock['variables_get'] = b => [b.getField('VAR').getText(), 0];
+Arduino.forBlock['variables_get'] = b => {
+  const name = arduinoVariableName(b);
+  window.headerExtras.globals.add(`int ${name} = 0;`);
+  return [name, 0];
+};
 Arduino.forBlock['variables_set'] = b => {
-  const name = b.getField('VAR').getText();
+  const name = arduinoVariableName(b);
   const val = Arduino.valueToCode(b, 'VALUE', 0) || '0';
   window.headerExtras.globals.add(`int ${name} = 0;`);
   return `  ${name} = ${val};\n`;
 };
 Arduino.forBlock['math_change'] = b => {
-  const name = b.getField('VAR').getText();
+  const name = arduinoVariableName(b);
   const val = Arduino.valueToCode(b, 'DELTA', 0) || '0';
   window.headerExtras.globals.add(`int ${name} = 0;`);
   return `  ${name} += ${val};\n`;

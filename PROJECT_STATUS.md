@@ -1,6 +1,6 @@
 # CubeLink Current Status
 
-Last updated: 2026-07-24
+Last updated: 2026-07-28
 
 ## Durable planning records (2026-07-23)
 
@@ -17,6 +17,30 @@ Last updated: 2026-07-24
 
 ## Completed
 
+- Rewrote `LAPTOP_HANDOFF.md` on 2026-07-28 as the complete laptop continuation
+  checklist, including environment versions, clone/build commands, Uno-as-ISP
+  firmware setup, safety geometry, the next physical test, and a clean Korean
+  prompt for starting a new Codex task.
+- Recompiled the current v1.4.2 firmware with
+  `MiniCore:avr:328:bootloader=no_bootloader` on 2026-07-28: 11,164 bytes of
+  flash (34%) and 410 bytes of RAM (20%).
+- Built and Drive-uploaded the local CubeLink Studio v3.4.4 test installer on
+  2026-07-28. It fixes the missing Electron variable-name prompt, uses stable
+  variable IDs at runtime, generates safe C++ variable names, restores
+  Electron/Blockly keyboard focus after serial transitions, and performs a
+  one-time removal of legacy mission workspace data so experimental Mission 1
+  blocks do not appear in the new distribution. An isolated packaged-app smoke
+  test confirmed a clean Mission 1 and the new variable prompt. SHA-256:
+  `AE5298243C352140332D8ECF760DB8F254B5335A391D608D8CA244B99F9E3F1D`.
+  Drive file ID: `1MDFHVSWecuWrD5Cm5KdK7w3-jmBPftvg`.
+  This remains an unsigned test build, not the public latest release.
+- Rebuilt the local CubeLink Studio v3.4.3 assisted installer on 2026-07-28
+  with firmware pose profile `PARK_90_30_160_90`, pin 9 limits 30..170,
+  pin 10 limits 10..160, and corrected mismatch guidance. The installer passed
+  packaged-resource inspection and launch verification. SHA-256:
+  `3F122CAFD88BEDA37FA0D24480A53B452EDACA9215112ABB3C2ECC2A8C9E3E5D`.
+  It remains an unsigned, physically unverified test build and is not the
+  public latest release.
 - Official repository created under `eoreum/CubeLink`.
 - Published CubeLink Studio v3.4.3 from the `gh-pages` branch at
   `https://eoreum.github.io/CubeLink/`.
@@ -30,13 +54,15 @@ Last updated: 2026-07-24
 - Electron packaged-resource paths corrected.
 - Electron serial open, close, reconnect, and write-error handling improved.
 - Active source tree cleaned of tracked backup/broken files.
-- Application version updated to `3.4.3`.
+- Application version updated to `3.4.4`.
 - Static JavaScript syntax checks passed.
 - Electron directory packaging succeeded with web resources and native serial bindings.
 - A fresh assisted Windows installer was built locally at
   `studio/electron/dist/Cubelink_Studio.exe`; the packaged web files match the
   source and the Windows x64 native serial binding is present.
-- User manually launched the unpacked v3.4.3 application successfully.
+- The unpacked v3.4.4 application reached COM3 real-time ready with the
+  v1.4.2 pose-profile handshake. Repeated reconnect plus field-entry testing of
+  the final v3.4.4 package still needs a deliberate physical test.
 - Audited the canonical repository, historical `C:\Projects` sources, full
   backup, and Google Drive CubeLink technical-assets folder.
 - Confirmed the current firmware source is populated (22,627 bytes) and valid
@@ -61,7 +87,7 @@ Last updated: 2026-07-24
 
 ## Not yet verified
 
-- Arduino Nano was detected on COM3 and connected with v3.4.3.
+- Arduino Nano was detected on COM3 and connected with the local v3.4.4 Studio.
 - Serial reconnection after USB unplug/replug passed.
 - All servo directions and real-time control passed, but severe jitter was observed, especially on pin 9 (lower-arm MG90S). Release remains blocked pending diagnosis.
 - Both joystick inputs passed.
@@ -119,14 +145,20 @@ Last updated: 2026-07-24
 - Firmware v1.4.2 candidate fixes four pre-test findings: Studio handshake
   commands lock out standalone arming until reboot; 30-second standalone
   inactivity now parks and detaches all servos; Studio initialization attaches
-  and moves one axis before energizing the next; and base/lower/upper software
-  limits are conservatively restricted to 10..170 degrees pending physical
-  end-stop measurement.
-- After the pin 10 upper-arm servo mounting orientation changed, its confirmed
-  storage target was changed from 10 to 170 degrees in both firmware and Studio.
-  The full storage pose is now pin 6=90, pin 9=10, pin 10=170, pin 11=90.
+  and moves one axis before energizing the next; and software limits are
+  conservatively restricted to base 10..170, lower 30..170, and upper
+  10..160 degrees pending physical end-stop measurement.
+- The current confirmed joint limits are pin 9=30..170 degrees and
+  pin 10=10..160 degrees. The matching storage pose is pin 6=90, pin 9=30,
+  pin 10=160, pin 11=90.
+- During Studio safety initialization, pin 10 must reach 90 degrees first.
+  Firmware then waits 500 ms before moving pin 9 to 90 degrees; this order is
+  mechanically significant. Power-on alone still leaves every servo disabled.
+- During full parking, the mechanically significant sequence is pin 6 to
+  90 degrees, pin 11 to 90 degrees, pin 9 to 30 degrees, and finally pin 10
+  to 160 degrees. Each axis reaches its target before the next axis moves.
 - CubeLink Studio now requires v1.4.2 plus the exact
-  `PARK_90_10_170_90` pose profile. This rejects v1.4.0/v1.4.1 and older
+  `PARK_90_30_160_90` pose profile. This rejects v1.4.0/v1.4.1 and older
   v1.4.2 binaries that still park pin 10 at 10 degrees.
   After strict serial parsing was added, v1.4.2 compiles for the classic Nano
   old-bootloader target using 11,256 bytes of flash (36%) and 394 bytes of RAM
