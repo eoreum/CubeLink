@@ -17,8 +17,8 @@
  *  v1.4.1 standalone behavior:
  *   - Power-only boot keeps every servo detached and stationary.
  *   - Neutral joysticks are calibrated before standalone arming is accepted.
- *   - A cleanly parked arm can enter joystick mode by holding both sticks
- *     diagonally down and inward for 2 seconds.
+ *   - A cleanly parked arm can enter joystick mode with the historically
+ *     measured v1.3.1 two-stick corner gesture held for 2 seconds.
  *   - After an interrupted session, both joystick buttons held for 2 seconds
  *     confirm that the user has physically returned the arm to the storage pose.
  *   - In standalone mode, both joystick buttons held for 2 seconds park the arm
@@ -33,9 +33,9 @@
  *  v1.2 → v1.3 핵심 변경 (자율 모드 진입 방식 전면 교체):
  *   • [제거] PC_TIMEOUT 기반 자동 자율 모드 진입 (타이밍 버그 원인)
  *       - USB만 꽂고 웹앱 연결 전이라도 자율 모드로 오인 진입하던 문제 해결
- *   • [신규] 드론식 ARMING: 양쪽 스틱을 "대각선 아래 안쪽"으로 2초 홀드 시 자율 모드 시동
- *       - 왼쪽 스틱  오른쪽 아래 = Y 작아짐 + X 커짐
- *       - 오른쪽 스틱 왼쪽 아래 = Y 작아짐 + X 커짐
+ *   • [신규] 드론식 ARMING: 과거 실물 측정 방향으로 양쪽 스틱을 2초 홀드 시 자율 모드 시동
+ *       - 왼쪽 스틱  = X 커짐 + Y 작아짐
+ *       - 오른쪽 스틱 = X 커짐 + Y 커짐
  *   • [신규] DISARM: 자율 모드 중 30초 무동작 시 자동 해제, 또는 USB 명령 수신 시 즉시 해제
  *   • 시동/해제 시 LED 패턴으로 사용자에게 알림
  *  ─────────────────────────────────────────────
@@ -365,14 +365,13 @@ void checkArming() {
     return;                               // 아직 ARM 감시 안 함
   }
 
-  // 양쪽 아래·안쪽: 왼쪽은 오른쪽 아래, 오른쪽은 왼쪽 아래.
-  // 현재 설치 방향에서는 두 스틱 모두 원시 X가 커지고 원시 Y가 작아진다.
-  bool leftInwardCorner =
+  // v1.3.1에서 실물 측정 후 정상 동작했던 원시값 조건을 복원한다.
+  bool leftMeasuredCorner =
       (x1 > centerJ1x + ARM_EDGE) && (y1 < centerJ1y - ARM_EDGE);
-  bool rightInwardCorner =
-      (x2 > centerJ2x + ARM_EDGE) && (y2 < centerJ2y - ARM_EDGE);
+  bool rightMeasuredCorner =
+      (x2 > centerJ2x + ARM_EDGE) && (y2 > centerJ2y + ARM_EDGE);
 
-  bool armPose = leftInwardCorner && rightInwardCorner;
+  bool armPose = leftMeasuredCorner && rightMeasuredCorner;
 
   unsigned long now = millis();
 

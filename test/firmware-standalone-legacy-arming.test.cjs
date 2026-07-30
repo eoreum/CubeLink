@@ -20,8 +20,8 @@ for (const required of [
   'if (!joystickCalibrated) return;',
   'if (!servosActive && !safetyState.safelyParked) return;',
   '(x1 > centerJ1x + ARM_EDGE) && (y1 < centerJ1y - ARM_EDGE)',
-  '(x2 > centerJ2x + ARM_EDGE) && (y2 < centerJ2y - ARM_EDGE)',
-  'leftInwardCorner && rightInwardCorner',
+  '(x2 > centerJ2x + ARM_EDGE) && (y2 > centerJ2y + ARM_EDGE)',
+  'leftMeasuredCorner && rightMeasuredCorner',
   'now - armHoldStart >= ARM_HOLD_TIME'
 ]) {
   if (!arming.includes(required)) {
@@ -35,11 +35,11 @@ if (!firmware.includes('const unsigned long ARM_HOLD_TIME = 2000;')) {
 
 for (const removed of [
   '(x1 < centerJ1x - ARM_EDGE) && (y1 < centerJ1y - ARM_EDGE)',
-  '(x2 > centerJ2x + ARM_EDGE) && (y2 > centerJ2y + ARM_EDGE)'
+  '(x2 > centerJ2x + ARM_EDGE) && (y2 < centerJ2y - ARM_EDGE)'
 ]) {
   if (arming.includes(removed)) {
     throw new Error(`Legacy asymmetric arming gesture remains: ${removed}`);
   }
 }
 
-console.log('Standalone down-and-inward 2-second arming gesture and safety gates verified');
+console.log('Standalone v1.3.1 measured 2-second arming gesture and safety gates verified');

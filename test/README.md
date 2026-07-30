@@ -10,8 +10,8 @@ Passed with the earlier connected hardware:
 
 Blocked or pending:
 
-- Physical validation and upload of the firmware build with the new standalone
-  down-and-inward two-stick arming gesture
+- Physical validation and upload of the firmware build with the restored v1.3.1
+  measured two-stick arming gesture
 - v1.4.1 Studio recovery, initialization, parking, and safe-stop flow
 - v1.4.1 power-only joystick calibration, recovery confirmation, arming, and parking
 - Multi-servo USB-only power stability
@@ -24,6 +24,6 @@ state, and moving servo channel for every physical test.
 
 Static regression coverage:
 
-- `node --test test/firmware-standalone-inward-arming.test.cjs` verifies that
-  both physical sticks must be held diagonally down and inward for two seconds,
-  while preserving neutral calibration, parked-state, and Studio-session locks.
+- `node --test test/firmware-standalone-legacy-arming.test.cjs` verifies the
+  measured v1.3.1 raw corner conditions and two-second hold while preserving
+  neutral calibration, parked-state, and Studio-session locks.

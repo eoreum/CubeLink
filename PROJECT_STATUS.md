@@ -226,14 +226,14 @@ Last updated: 2026-07-30
   45-degree boundary so one diagonal stick movement cannot command two servos
   and does not rapidly alternate axes.
 - The installed joystick orientation is recorded as raw X=0 pointing toward
-  physical up. Standalone arming is now both sticks diagonally down and inward:
-  left stick down-right plus right stick down-left, held for two seconds. With
-  the current installation both inputs use raw X high/Y low. Neutral
-  calibration, parked-state confirmation, return-to-neutral, and Studio-session
-  lockout remain required. This source change is not uploaded or physically
-  validated yet. The updated source compiled successfully on 2026-07-30 with
-  MiniCore 3.1.2 (`bootloader=no_bootloader`): 11,164 bytes of flash and
-  410 bytes of RAM.
+  physical up. Standalone arming now restores the measured v1.3.1 conditions
+  from commit `92db64a`: left raw X high/Y low plus right raw X high/Y high,
+  held for two seconds. This is the earlier implementation reported to have
+  worked on the physical controller. Neutral calibration, parked-state
+  confirmation, return-to-neutral, and Studio-session lockout remain required.
+  The restored source compiled successfully on 2026-07-30 with MiniCore 3.1.2
+  (`bootloader=no_bootloader`), using 11,164 bytes of flash and 410 bytes of
+  RAM. It is not uploaded or physically revalidated yet.
 
 - Firmware v1.4.0 never energizes servos automatically during boot.
 - EEPROM stores only whether the defined storage pose was completed safely; it does not assume the last commanded angle equals the physical angle.

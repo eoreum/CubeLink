@@ -51,12 +51,12 @@ ATmega328P target. A later MiniCore `bootloader=no_bootloader` compile used
 full physical motion testing are still required. Do not treat this image as
 released production firmware.
 
-For power-only outdoor or event use, standalone manual control is armed only
-after neutral calibration by holding both physical joysticks diagonally down
-and inward for two seconds: left stick down-right and right stick down-left.
-The user must then return both sticks to neutral before motion begins. A
-verified Studio protocol command continues to lock out standalone arming until
-reboot. This gesture change remains source-only until the user explicitly
-authorizes a firmware upload. The exact updated source compiled successfully
-on 2026-07-30 with MiniCore 3.1.2 (`bootloader=no_bootloader`), using 11,164
-bytes of flash and 410 bytes of RAM.
+For power-only outdoor or event use, standalone manual control restores the
+physically measured v1.3.1 arming conditions from commit `92db64a`: left raw X
+high/Y low and right raw X high/Y high, held for two seconds after neutral
+calibration. The user must then return both sticks to neutral before motion
+begins. A verified Studio protocol command continues to lock out standalone
+arming until reboot. This restoration remains source-only until the user
+explicitly authorizes a firmware upload. The restored source compiled
+successfully on 2026-07-30 with MiniCore 3.1.2
+(`bootloader=no_bootloader`), using 11,164 bytes of flash and 410 bytes of RAM.
