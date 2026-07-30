@@ -1,6 +1,32 @@
 # CubeLink Current Status
 
-Last updated: 2026-07-28
+Last updated: 2026-07-30
+
+## Desktop handoff verification (2026-07-30)
+
+- Imported the v3.6.0 Studio, Windows installer, driver, and regression-test
+  changes from the desktop handoff archive on branch
+  `agent/v360-desktop-handoff`.
+- Preserved `firmware/` without modification. The active firmware source
+  SHA-256 remained
+  `1DF7E74372B7E3471A4633AD9E1931125A29376E47249BCDF6C8EF7C72322E19`.
+- Restored Electron dependencies from `package-lock.json`, rebuilt the
+  v3.6.0 assisted NSIS installer, verified packaged web resources and the
+  bundled CH340/CH341 driver, and passed a packaged-app launch smoke test.
+- The local desktop validation installer is
+  `studio/electron/dist/Cubelink_Studio.exe`, SHA-256
+  `7953BBD42673730A046FBF6380B75B7665C6B8486F5B186E664D443CD3A7B576`.
+  It is unsigned and is not the exact student-final binary recorded in the
+  handoff.
+- The handoff's exact `CubeLink_Studio_v3.6.0_Student_Final.exe` binary was
+  not present in the downloaded ZIP, elsewhere on this PC, or in the
+  accessible Drive handoff folder. Its recorded SHA-256 therefore remains
+  unverified on this desktop.
+- No serial port was connected during the desktop check. CH341SER driver
+  version `4.0.2026.2` is already registered in Windows, but COM connection,
+  initialization, live block execution, and safe shutdown still require the
+  physical teacher-PC/robot test before release.
+- Detailed evidence is recorded in `DESKTOP_RESUME_LOG_2026-07-30.md`.
 
 ## Durable planning records (2026-07-23)
 

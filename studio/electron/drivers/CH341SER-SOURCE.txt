@@ -1,0 +1,13 @@
+CubeLink Studio bundled USB serial driver
+
+Manufacturer: Nanjing Qinheng Microelectronics Co., Ltd. (WCH)
+Official source: https://www.wch.cn/downloads/CH341SER_ZIP.html
+Official file endpoint: https://file.wch.cn/download/file?id=5
+Downloaded: 2026-07-30
+ZIP SHA-256: 59967D9CE371D0BF3DF02DEC0B66C8DFBF9CA576DA0572FF4404148A7C381807
+INF DriverVer: 02/11/2026, 4.0.2026.02
+
+The driver package is included unmodified. Its catalog and driver binaries were
+verified as valid Microsoft Windows Hardware Compatibility Publisher signatures.
+The WCH setup executable was verified as signed by Nanjing Qinheng
+Microelectronics Co., Ltd. The CubeLink firmware is not included or modified.

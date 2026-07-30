@@ -66,41 +66,51 @@ Arduino.scrub_ = (b, code) => code + (b.nextConnection && b.nextConnection.targe
 
 // 라이브러리 include 및 전역 변수 동적 주입용 박스
 window.headerExtras = { includes: new Set(), globals: new Set(), helpers: new Set() };
+let arduinoVariableNames = new Map();
 window.resetHeaders = function() {
-  window.headerExtras = {
-    includes: new Set(),
-    globals: new Set(),
-    helpers: new Set(),
-    variableNames: new Map(),
-    usedVariableNames: new Set()
-  };
+  window.headerExtras = { includes: new Set(), globals: new Set(), helpers: new Set() };
+  arduinoVariableNames = new Map();
 };
 
-function arduinoVariableName(block) {
-  if (!window.headerExtras.variableNames) window.headerExtras.variableNames = new Map();
-  if (!window.headerExtras.usedVariableNames) window.headerExtras.usedVariableNames = new Set();
-  const field = block.getField('VAR');
-  const model = field && typeof field.getVariable === 'function' ? field.getVariable() : null;
-  const id = model && typeof model.getId === 'function'
-    ? model.getId()
-    : (block.getFieldValue('VAR') || (field && field.getText()) || 'variable');
-  if (window.headerExtras.variableNames.has(id)) return window.headerExtras.variableNames.get(id);
+function shortStableHash(value) {
+  let hash = 2166136261;
+  for (const ch of String(value || '')) {
+    hash ^= ch.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36).slice(0, 6);
+}
 
-  const label = (field && field.getText()) || 'variable';
-  let stem = String(label)
-    .normalize('NFKD')
+function arduinoVariableName(block) {
+  const field = block.getField('VAR');
+  const variableId = String(block.getFieldValue('VAR') || field?.getText() || 'variable');
+  if (arduinoVariableNames.has(variableId)) return arduinoVariableNames.get(variableId);
+
+  const displayName = String(field?.getText() || 'variable').normalize('NFKD');
+  let base = displayName
     .replace(/[^a-zA-Z0-9_]/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '');
-  if (!stem || /^[0-9]/.test(stem)) stem = 'value_' + stem;
-  let name = 'var_' + (stem || 'value');
-  if (window.headerExtras.usedVariableNames.has(name)) {
-    let hash = 0;
-    for (const ch of String(id)) hash = ((hash * 31) + ch.charCodeAt(0)) >>> 0;
-    name += '_' + hash.toString(36);
-  }
-  window.headerExtras.variableNames.set(id, name);
-  window.headerExtras.usedVariableNames.add(name);
+  if (!base) base = 'variable';
+  else if (!/[a-zA-Z_]/.test(base[0])) base = 'variable_' + base;
+
+  const reserved = new Set([
+    'auto','bool','break','case','char','class','const','continue','default',
+    'do','double','else','enum','extern','false','float','for','goto','if',
+    'int','long','namespace','new','private','protected','public','return',
+    'short','signed','sizeof','static','struct','switch','template','this',
+    'true','typedef','union','unsigned','using','virtual','void','volatile','while'
+  ]);
+  if (reserved.has(base)) base = 'var_' + base;
+
+  const safeName = `${base}_${shortStableHash(variableId)}`;
+  arduinoVariableNames.set(variableId, safeName);
+  return safeName;
+}
+
+function ensureArduinoVariable(block) {
+  const name = arduinoVariableName(block);
+  window.headerExtras.globals.add(`int ${name} = 0;`);
   return name;
 }
 
@@ -126,21 +136,15 @@ Arduino.forBlock['math_arithmetic'] = b => {
 };
 
 // ----- 변수 번역 로직 -----
-Arduino.forBlock['variables_get'] = b => {
-  const name = arduinoVariableName(b);
-  window.headerExtras.globals.add(`int ${name} = 0;`);
-  return [name, 0];
-};
+Arduino.forBlock['variables_get'] = b => [ensureArduinoVariable(b), 0];
 Arduino.forBlock['variables_set'] = b => {
-  const name = arduinoVariableName(b);
+  const name = ensureArduinoVariable(b);
   const val = Arduino.valueToCode(b, 'VALUE', 0) || '0';
-  window.headerExtras.globals.add(`int ${name} = 0;`);
   return `  ${name} = ${val};\n`;
 };
 Arduino.forBlock['math_change'] = b => {
-  const name = arduinoVariableName(b);
+  const name = ensureArduinoVariable(b);
   const val = Arduino.valueToCode(b, 'DELTA', 0) || '0';
-  window.headerExtras.globals.add(`int ${name} = 0;`);
   return `  ${name} += ${val};\n`;
 };
 // ----- 사용자 정의 함수 번역 로직 -----

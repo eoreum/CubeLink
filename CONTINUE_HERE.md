@@ -1,5 +1,17 @@
 # Continue CubeLink Work Here
 
+Desktop continuation update (2026-07-30): the v3.6.0 Studio handoff source has
+been integrated on `agent/v360-desktop-handoff` without changing `firmware/`.
+Static checks, two handoff regression tests, packaging, resource inspection,
+and a packaged-app launch smoke test passed. The exact student-final installer
+named in the handoff is missing from the downloaded ZIP and accessible Drive
+handoff folder; the newly rebuilt desktop validation installer has a different
+hash and must not be substituted for that recorded final binary without an
+explicit release decision. No COM device was connected, so the next required
+step remains the teacher-PC/physical-robot validation described in
+`DESKTOP_HANDOFF_2026-07-30.md`. See
+`DESKTOP_RESUME_LOG_2026-07-30.md` for evidence.
+
 Durable product decisions and the future modular roadmap are recorded in
 `docs/DECISION_LOG.md` and `docs/PRODUCT_ROADMAP.md`. Read them before making
 power, connection, integrated-board, car, omni-wheel, or product-scope choices.

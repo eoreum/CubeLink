@@ -1,6 +1,6 @@
 {
   "name": "cubelinkelectron",
-  "version": "3.4.4",
+  "version": "3.6.0",
   "description": "CubeLink educational robotics studio by Eoreum",
   "main": "main.js",
   "scripts": {
@@ -20,7 +20,7 @@
     "@serialport/parser-readline": "^13.0.0",
     "serialport": "^13.0.0"
   },
-    "build": {
+  "build": {
     "appId": "com.eoreum.cubelinkstudio",
     "productName": "CubeLink Studio",
     "asar": true,
@@ -40,6 +40,18 @@
           "!**/*.broken",
           "!**/*.tmp"
         ]
+      },
+      {
+        "from": "drivers/CH341SER/CH341SER",
+        "to": "drivers/CH341SER",
+        "filter": [
+          "CH341SER.INF",
+          "CH341SER.CAT",
+          "*.sys",
+          "*.SYS",
+          "*.dll",
+          "*.DLL"
+        ]
       }
     ],
     "win": {
@@ -48,9 +60,11 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": true,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
+      "include": "installer.nsh",
       "artifactName": "Cubelink_Studio.exe"
     }
   }

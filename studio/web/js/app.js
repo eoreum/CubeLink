@@ -21,6 +21,132 @@
 (function() {
   'use strict';
 
+  const ELECTRON_APP_VERSION = window.cubelink && window.cubelink.getVersion
+    ? String(window.cubelink.getVersion())
+    : '';
+  const ELECTRON_UI_INIT_KEY = ELECTRON_APP_VERSION
+    ? `cubelink_electron_ui_initialized_${ELECTRON_APP_VERSION.replace(/[^0-9A-Za-z_-]/g, '_')}`
+    : '';
+
+  function initializeFreshElectronState() {
+    if (!window.cubelink || !ELECTRON_UI_INIT_KEY || localStorage.getItem(ELECTRON_UI_INIT_KEY) === '1') return;
+
+    // 새 설치판을 처음 실행할 때 이전 설치가 남긴 학습 화면만 초기화한다.
+    // 하드웨어별 영점 보정값은 안전을 위해 보존한다.
+    Object.keys(localStorage).forEach((key) => {
+      const isWorkspace = key.startsWith('cubelink_ws_');
+      const isLearningUI = key === 'cubelink_missions_done' || key === 'cubelink_group_open';
+      const isOldInitMarker = key.startsWith('cubelink_electron_ui_initialized_');
+      if (isWorkspace || isLearningUI || isOldInitMarker) localStorage.removeItem(key);
+    });
+    localStorage.setItem(
+      'cubelink_group_open',
+      JSON.stringify({ basic: true, intermediate: false, advanced: false })
+    );
+    localStorage.setItem(ELECTRON_UI_INIT_KEY, '1');
+    console.log('✨ CubeLink Studio 새 설치 화면 초기화 완료');
+  }
+
+  initializeFreshElectronState();
+
+  /**
+   * Blockly의 기본 변수 만들기/이름 바꾸기는 window.prompt에 의존한다.
+   * 설치형 Electron에서 네이티브 prompt가 뒤로 숨거나 열리지 않는 경우가
+   * 있으므로, 프로그램 화면 안에서 항상 보이는 입력창으로 교체한다.
+   */
+  function installBlocklyVariablePrompt() {
+    if (!window.Blockly || !Blockly.dialog || typeof Blockly.dialog.setPrompt !== 'function') return;
+    if (window._cubeLinkVariablePromptInstalled) return;
+    window._cubeLinkVariablePromptInstalled = true;
+
+    Blockly.dialog.setPrompt((message, defaultValue, callback) => {
+      const old = document.getElementById('cubelinkVariablePrompt');
+      if (old) old.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'cubelinkVariablePrompt';
+      overlay.style.cssText = [
+        'position:fixed', 'inset:0', 'z-index:2147483647',
+        'display:flex', 'align-items:center', 'justify-content:center',
+        'background:rgba(0,0,0,.68)'
+      ].join(';');
+
+      const panel = document.createElement('div');
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-modal', 'true');
+      panel.setAttribute('aria-label', '변수 이름 입력');
+      panel.style.cssText = [
+        'width:min(420px,calc(100vw - 40px))', 'padding:22px',
+        'border:2px solid #D4AF37', 'border-radius:12px',
+        'background:#202020', 'color:#fff',
+        'box-shadow:0 18px 60px rgba(0,0,0,.65)'
+      ].join(';');
+
+      const label = document.createElement('div');
+      label.textContent = String(message || '새 변수 이름:');
+      label.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:12px;white-space:pre-wrap;';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = String(defaultValue || '');
+      input.autocomplete = 'off';
+      input.spellcheck = false;
+      input.style.cssText = [
+        'box-sizing:border-box', 'width:100%', 'padding:11px 12px',
+        'border:1px solid #777', 'border-radius:7px',
+        'background:#fff', 'color:#111', 'font-size:17px', 'outline:none'
+      ].join(';');
+
+      const buttons = document.createElement('div');
+      buttons.style.cssText = 'display:flex;justify-content:flex-end;gap:9px;margin-top:16px;';
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = '취소';
+      cancel.className = 'btn';
+      const ok = document.createElement('button');
+      ok.type = 'button';
+      ok.textContent = '확인';
+      ok.className = 'btn primary';
+
+      let finished = false;
+      const finish = (value) => {
+        if (finished) return;
+        finished = true;
+        overlay.remove();
+        callback(value);
+        setTimeout(() => {
+          try { window.workspace?.getParentSvg?.().focus(); } catch (_) {}
+        }, 0);
+      };
+
+      cancel.addEventListener('click', () => finish(null));
+      ok.addEventListener('click', () => finish(input.value));
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          finish(input.value);
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          finish(null);
+        }
+      });
+      overlay.addEventListener('mousedown', (event) => {
+        if (event.target === overlay) finish(null);
+      });
+
+      buttons.append(cancel, ok);
+      panel.append(label, input, buttons);
+      overlay.append(panel);
+      document.body.append(overlay);
+      requestAnimationFrame(() => {
+        input.focus();
+        input.select();
+      });
+    });
+  }
+
+  installBlocklyVariablePrompt();
+
 /* ════════════════════════════════════════════════════════════════════
    ░░░ v2.8.0 — 미션 검증 시스템 통합 (v2.6.5 자산 이식) ░░░
    ════════════════════════════════════════════════════════════════════ */
@@ -295,6 +421,13 @@
     }
   ];
   window.MISSIONS = MISSIONS; // 디버그용
+  const FREE_WORKSPACE = {
+    id: 'free',
+    title: '자유 코딩 작업공간',
+    desc: '미션 조건 없이 원하는 블록을 조합해 나만의 CubeLink 프로그램을 만드세요.',
+    hint: '모든 블록을 자유롭게 사용할 수 있습니다.\n작업 내용은 자동 저장되며 9개 미션 진행률에는 영향을 주지 않습니다.'
+  };
+  window.FREE_WORKSPACE = FREE_WORKSPACE;
 
   /* ────────────────────────────────────────────────────────────────
      [2] 검증 헬퍼 3종
@@ -355,22 +488,11 @@
 
   /* ────────────────────────────────────────────────────────────────
      [3] WorkspaceStorage — 미션별 작업물 자동 저장/복원
-         localStorage 키: cubelink_ws_v344_<missionId>
+         localStorage 키: cubelink_ws_<missionId>
      ──────────────────────────────────────────────────────────────── */
   const WorkspaceStorage = {
-    KEY_PREFIX: 'cubelink_ws_v344_',
-    LEGACY_PREFIX: 'cubelink_ws_',
-    MIGRATION_KEY: 'cubelink_workspace_schema_v344',
+    KEY_PREFIX: 'cubelink_ws_',
     saveTimer: null,
-
-    migrateLegacyData() {
-      if (localStorage.getItem(this.MIGRATION_KEY) === '1') return;
-      Object.keys(localStorage)
-        .filter(k => k.startsWith(this.LEGACY_PREFIX) && !k.startsWith(this.KEY_PREFIX))
-        .forEach(k => localStorage.removeItem(k));
-      localStorage.setItem(this.MIGRATION_KEY, '1');
-      console.log('🧹 이전 시험 배포본의 작업공간 저장값을 정리했습니다.');
-    },
 
     scheduleSave(missionId) {
       if (!missionId) return;
@@ -460,6 +582,15 @@
       document.querySelectorAll('.mission-item').forEach(el => {
         const id = el.dataset.mid;
         if (!id) return;
+        if (id === FREE_WORKSPACE.id) {
+          el.classList.remove('done');
+          const freeNum = el.querySelector('.mission-num');
+          if (freeNum) {
+            freeNum.textContent = '✎';
+            freeNum.classList.toggle('in-progress', id === this.current);
+          }
+          return;
+        }
         el.classList.toggle('done', this.done.has(id));
         const numEl = el.querySelector('.mission-num');
         if (!numEl) return;
@@ -609,66 +740,6 @@ checkGraduation() {
   window._userVars = window._userVars || {};
   window._ultrasonicValue = window._ultrasonicValue != null ? window._ultrasonicValue : 30;
 
-  function installBlocklyDialogs() {
-    if (!Blockly.dialog || typeof Blockly.dialog.setPrompt !== 'function') return;
-    Blockly.dialog.setPrompt((message, defaultValue, callback) => {
-      document.getElementById('cubelinkBlocklyPrompt')?.remove();
-
-      const overlay = document.createElement('div');
-      overlay.id = 'cubelinkBlocklyPrompt';
-      overlay.style.cssText = 'position:fixed;inset:0;z-index:120000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;';
-
-      const panel = document.createElement('div');
-      panel.style.cssText = 'width:min(430px,90vw);background:#181b20;border:1px solid #D4AF37;border-radius:12px;padding:22px;color:white;box-shadow:0 18px 50px rgba(0,0,0,.55);';
-
-      const label = document.createElement('label');
-      label.textContent = message || '이름을 입력하세요.';
-      label.style.cssText = 'display:block;margin-bottom:12px;color:#D4AF37;font-size:16px;font-weight:700;';
-
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.value = defaultValue || '';
-      input.autocomplete = 'off';
-      input.spellcheck = false;
-      input.style.cssText = 'box-sizing:border-box;width:100%;padding:11px 12px;border:1px solid #666;border-radius:7px;background:#0f1115;color:white;font-size:16px;outline:none;';
-
-      const actions = document.createElement('div');
-      actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;margin-top:16px;';
-      const cancel = document.createElement('button');
-      cancel.textContent = '취소';
-      cancel.style.cssText = 'padding:8px 18px;border:0;border-radius:6px;background:#555;color:white;cursor:pointer;';
-      const ok = document.createElement('button');
-      ok.textContent = '확인';
-      ok.style.cssText = 'padding:8px 18px;border:0;border-radius:6px;background:#D4AF37;color:#111;font-weight:700;cursor:pointer;';
-      actions.append(cancel, ok);
-      panel.append(label, input, actions);
-      overlay.appendChild(panel);
-      document.body.appendChild(overlay);
-
-      let finished = false;
-      const finish = (value) => {
-        if (finished) return;
-        finished = true;
-        overlay.remove();
-        callback(value);
-        if (window.restoreStudioInputFocus) window.restoreStudioInputFocus('Blockly dialog closed');
-      };
-      cancel.addEventListener('click', () => finish(null));
-      ok.addEventListener('click', () => finish(input.value));
-      overlay.addEventListener('mousedown', (e) => {
-        if (e.target === overlay) finish(null);
-      });
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); finish(input.value); }
-        if (e.key === 'Escape') { e.preventDefault(); finish(null); }
-      });
-      setTimeout(() => {
-        input.focus();
-        input.select();
-      }, 0);
-    });
-  }
-
   /* ============================================================
      초음파 슬라이더 → window._ultrasonicValue 자동 동기화
      ============================================================ */
@@ -723,9 +794,6 @@ checkGraduation() {
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    WorkspaceStorage.migrateLegacyData();
-    installBlocklyDialogs();
-
     if (window.Sim && typeof window.Sim.init === 'function') {
       window.Sim.init();
     }
@@ -773,19 +841,41 @@ checkGraduation() {
       } catch(e) { console.warn('컨텍스트 메뉴 등록 실패:', e.message); }
     }
 
-    workspace.addChangeListener(updateCppCodeView);
+    // 숫자/문자 필드 편집 중 매 키 입력마다 코드 생성기를 즉시 돌리면
+    // Chromium의 Blockly HTML 입력창이 포커스를 잃을 수 있다. UI 이벤트는
+    // 제외하고 짧게 모아서 한 번만 갱신한다.
+    let codeViewTimer = null;
+    workspace.addChangeListener((event) => {
+      if (event && event.isUiEvent) return;
+      clearTimeout(codeViewTimer);
+      codeViewTimer = setTimeout(updateCppCodeView, 120);
+    });
 
     renderMissions();
     setupTabEvents();
     setupButtonEvents();
 
-    // workspace 변경 시: C++ 코드 갱신 + 자동저장 + orphan 경고
-    workspace.addChangeListener(() => {
-      try { highlightOrphans(); } catch (e) {}
+    // workspace 변경 시: 자동저장 + orphan 경고
+    // setWarningText는 블록을 다시 그리므로 숫자/문자 필드 변경 때 호출하지
+    // 않는다. 블록 생성·이동·삭제처럼 연결 구조가 바뀔 때만 검사한다.
+    workspace.addChangeListener((event) => {
+      if (!event || event.isUiEvent) return;
+      const structuralEvents = [
+        Blockly.Events.BLOCK_CREATE,
+        Blockly.Events.BLOCK_MOVE,
+        Blockly.Events.BLOCK_DELETE
+      ];
+      if (structuralEvents.includes(event.type)) {
+        setTimeout(() => {
+          try { highlightOrphans(); } catch (e) {}
+        }, 0);
+      }
       if (MissionProgress.current) {
         WorkspaceStorage.scheduleSave(MissionProgress.current);
       }
     });
+
+    installBlocklyFieldFocusRecovery();
 
     selectMission('m1');
 
@@ -797,6 +887,52 @@ checkGraduation() {
     setTimeout(triggerResize, 300);
     setTimeout(() => window.dispatchEvent(new Event('resize')), 600);
   });
+
+  /* ============================================================
+     연속 필드 편집 포커스 복구
+     드롭다운 변경 직후 다른 숫자/문자 필드를 누를 때 이전 Blockly 메뉴가
+     키보드 포커스를 계속 잡아 입력칸이 회색으로 굳는 현상을 방지한다.
+     ============================================================ */
+  function installBlocklyFieldFocusRecovery() {
+    if (document._cubelinkFieldFocusRecovery) return;
+    document._cubelinkFieldFocusRecovery = true;
+
+    document.addEventListener('pointerdown', (event) => {
+      if (window._runtimeRunning) return;
+      const target = event.target;
+      const editable = target && target.closest
+        ? target.closest('.blocklyEditableText')
+        : null;
+      if (!editable || editable.closest('.blocklyFlyout')) return;
+
+      // 드롭다운 자체를 여는 클릭은 Blockly의 기본 동작에 맡긴다.
+      const isDropdown = !!editable.querySelector('.blocklyDropdownText, .blocklyDropdownRect');
+      if (isDropdown) return;
+
+      // 이전 드롭다운/필드 편집기의 소유권을 정리한 뒤 새 필드의 기본
+      // pointer 처리가 실행되게 한다. 이벤트 자체는 막지 않는다.
+      try {
+        if (Blockly.DropDownDiv && Blockly.DropDownDiv.hideWithoutAnimation) {
+          Blockly.DropDownDiv.hideWithoutAnimation();
+        }
+      } catch (_) {}
+      try {
+        const oldInput = document.querySelector('.blocklyWidgetDiv .blocklyHtmlInput');
+        if (oldInput) Blockly.WidgetDiv.hide();
+      } catch (_) {}
+
+      const focusOpenedInput = () => {
+        if (window._runtimeRunning) return;
+        const input = document.querySelector('.blocklyWidgetDiv .blocklyHtmlInput');
+        if (!input) return;
+        input.disabled = false;
+        input.readOnly = false;
+        try { input.focus({ preventScroll: true }); } catch (_) { input.focus(); }
+      };
+      requestAnimationFrame(focusOpenedInput);
+      setTimeout(focusOpenedInput, 40);
+    }, true);
+  }
 
   /* ============================================================
      커리큘럼 메뉴
@@ -854,7 +990,16 @@ checkGraduation() {
         </div>`;
     }).join('');
 
-    container.innerHTML = html;
+    container.innerHTML = `
+      <div class="free-workspace-card mission-item" data-mid="${FREE_WORKSPACE.id}" id="mItem-free">
+        <div class="mission-num">✎</div>
+        <div style="flex:1;min-width:0;">
+          <strong>✨ ${FREE_WORKSPACE.title}</strong>
+          <small>미션과 별도로 마음대로 만들고 자동 저장합니다.</small>
+        </div>
+      </div>
+      <div class="mission-divider" aria-hidden="true"></div>
+      ${html}`;
 
     // 그룹 헤더 클릭 → 접기/펼치기
     container.querySelectorAll('.mission-group-header').forEach(h => {
@@ -893,7 +1038,9 @@ checkGraduation() {
       WorkspaceStorage.save(MissionProgress.current);
     }
 
-    const target = MISSIONS.find(x => x.id === id);
+    const target = id === FREE_WORKSPACE.id
+      ? FREE_WORKSPACE
+      : MISSIONS.find(x => x.id === id);
     if (!target) return;
     currentMissionId = id;
 
@@ -932,7 +1079,7 @@ checkGraduation() {
       }, 100);
     }
 
-    // MissionProgress에 등록 (state 초기화)
+    // MissionProgress에 등록 (자유 코딩은 검증 대상이 아니며 저장만 한다)
     MissionProgress.select(id);
     MissionProgress.refreshUI();
   }
@@ -1029,18 +1176,15 @@ checkGraduation() {
     return 'left';
   }
 
+  function runtimeVariableKey(block) {
+    const field = block && block.getField ? block.getField('VAR') : null;
+    return String(block?.getFieldValue?.('VAR') || field?.getText?.() || 'variable');
+  }
+
   /* ============================================================
      ★ 값 평가 엔진 (evalValue) ★
      blocks.js 실제 필드명 기준으로 전면 보정 (v2.7.2)
      ============================================================ */
-  function runtimeVariableKey(block) {
-    const field = block && block.getField && block.getField('VAR');
-    const model = field && typeof field.getVariable === 'function' ? field.getVariable() : null;
-    return model && typeof model.getId === 'function'
-      ? model.getId()
-      : (field ? field.getText() : block.getFieldValue('VAR'));
-  }
-
   function evalValue(block) {
     if (!block) return 0;
     const t = block.type;
@@ -1227,8 +1371,11 @@ checkGraduation() {
     }
     const simOnly = window._simulationOnly === true;
     window._simulationOnly = false;
+    let runtimeMode = simOnly
+      ? 'sim'
+      : (['real', 'sim', 'twin'].includes(window.actionMode) ? window.actionMode : 'real');
     const port = window._serialPort;
-    const useSerial = !simOnly && port && port.writable;
+    let useSerial = (runtimeMode === 'real' || runtimeMode === 'twin') && !!(port && port.writable);
 
     // 안전장치
     let loopCount = 0;
@@ -1250,16 +1397,19 @@ checkGraduation() {
       return a;
     }
 
-    if (!simOnly && !useSerial) {
-      if (!confirm("로봇이 연결되지 않았습니다. 3D 시뮬레이션만 실행할까요?")) return;
+    if ((runtimeMode === 'real' || runtimeMode === 'twin') && !useSerial) {
+      if (!await window.customConfirm("로봇이 연결되지 않았습니다. 3D 시뮬레이션만 실행할까요?")) return;
+      runtimeMode = 'sim';
+      useSerial = false;
     }
 
     if (useSerial && (!window._cubeSafety || !window._cubeSafety.initialized)) {
-      alert('안전 초기화가 완료되지 않았습니다. 로봇 연결 및 초기화를 먼저 완료하세요.');
+      await window.customAlert('안전 초기화가 완료되지 않았습니다. 로봇 연결 및 초기화를 먼저 완료하세요.');
       return;
     }
 
 
+    // 매 실행은 새 Arduino 전원 투입처럼 변수값 0에서 시작한다.
     window._userVars = {};
     window._runtimeRunning = true;
 
@@ -1289,7 +1439,9 @@ checkGraduation() {
       return;
     }
     // v2.9.1: 실행 중 편집 잠금 (시뮬=금색, 실시간=빨강) — setup 확인 후 켬
-    showRunLock(!simOnly);
+    showRunLock(runtimeMode !== 'sim');
+    const runtimeModeLabel = { real: '실물만', sim: '그래픽만', twin: '디지털 트윈(실물 + 그래픽)' };
+    appendSerialLog(`🔀 실행 모드: ${runtimeModeLabel[runtimeMode]}`);
     const setupChain = setupRoot.getInputTargetBlock('SETUP');
     const loopChain  = setupRoot.getInputTargetBlock('LOOP');
 
@@ -1301,10 +1453,14 @@ checkGraduation() {
     };
 
     // ─── 서보 전송 공통 ───
-async function sendServo(pin, angle) {
-  // v2.8.9: 모드별 분기
-  const sendReal = !window.shouldSendToRobot   || window.shouldSendToRobot();
-  const sendSim  = simOnly || !window.shouldUpdateGraphic || window.shouldUpdateGraphic();
+async function sendServo(pin, angle, options) {
+  options = options || {};
+  // 실행을 시작한 순간의 모드를 고정해 실물/그래픽 경로를 일관되게 유지한다.
+  const sendReal = runtimeMode === 'real' || runtimeMode === 'twin';
+  const sendSim  = runtimeMode === 'sim'  || runtimeMode === 'twin';
+
+  // 3D는 USB drain 대기 전에 먼저 갱신해 시리얼 지연에 화면이 묶이지 않게 한다.
+  if (sendSim && !options.skipSim && window.Sim) Sim.setServoAngle(pin, angle);
 
   if (sendReal && writer) {
     // ★ 캘리브레이션: 실물 전송 각도 = 명령 각도 + 해당 핀 Offset
@@ -1321,7 +1477,6 @@ async function sendServo(pin, angle) {
     }
   }
 
-  if (sendSim && window.Sim) Sim.setServoAngle(pin, angle);
   window.servoAngles[pin] = angle;
   if (window.MissionProgress) MissionProgress.onSimEvent({ type: 'servo', pin: parseInt(pin), angle: parseFloat(angle) });
 }
@@ -1365,11 +1520,17 @@ async function sendServo(pin, angle) {
           const sec    = parseFloat(b.getFieldValue('SEC')) || 1;
           const steps  = Math.max(5, Math.floor(sec * 20));
           const start  = window.servoAngles[pin] != null ? window.servoAngles[pin] : 90;
+          const useTimedSim = (runtimeMode === 'sim' || runtimeMode === 'twin') &&
+            window.Sim && typeof Sim.moveServoSmooth === 'function';
+          if (useTimedSim) Sim.moveServoSmooth(pin, target, sec);
+          const moveStarted = performance.now();
+          const stepMs = (sec * 1000) / steps;
           for (let i = 1; i <= steps; i++) {
             if (!window._runtimeRunning) return;
             const a = Math.round(start + (target - start) * (i / steps));
-            await sendServo(pin, a);
-            await new Promise(r => setTimeout(r, (sec * 1000) / steps));
+            await sendServo(pin, a, { skipSim: useTimedSim });
+            const remain = moveStarted + (i * stepMs) - performance.now();
+            if (remain > 0) await new Promise(r => setTimeout(r, remain));
           }
           return;
         }
@@ -1384,11 +1545,17 @@ async function sendServo(pin, angle) {
           const sec    = parseFloat(b.getFieldValue('SEC')) || 1;
           const steps  = Math.max(5, Math.floor(sec * 20));
           const start  = window.servoAngles[pin] != null ? window.servoAngles[pin] : 90;
+          const useTimedSim = (runtimeMode === 'sim' || runtimeMode === 'twin') &&
+            window.Sim && typeof Sim.moveServoSmooth === 'function';
+          if (useTimedSim) Sim.moveServoSmooth(pin, target, sec);
+          const moveStarted = performance.now();
+          const stepMs = (sec * 1000) / steps;
           for (let i = 1; i <= steps; i++) {
             if (!window._runtimeRunning) return;
             const a = Math.round(start + (target - start) * (i / steps));
-            await sendServo(pin, a);
-            await new Promise(r => setTimeout(r, (sec * 1000) / steps));
+            await sendServo(pin, a, { skipSim: useTimedSim });
+            const remain = moveStarted + (i * stepMs) - performance.now();
+            if (remain > 0) await new Promise(r => setTimeout(r, remain));
           }
           return;
         }
@@ -1588,19 +1755,19 @@ async function sendServo(pin, angle) {
 
         // ═══ 변수 설정 ═══
         if (t === 'variables_set') {
-          const key = runtimeVariableKey(b);
+          const name  = runtimeVariableKey(b);
           const inner = b.getInputTargetBlock('VALUE');
-          window._userVars[key] = inner ? evalValue(inner) : 0;
+          window._userVars[name] = inner ? evalValue(inner) : 0;
           return;
         }
 
         // ═══ 변수 증감 ═══
         if (t === 'math_change') {
-          const key = runtimeVariableKey(b);
+          const name  = runtimeVariableKey(b);
           const inner = b.getInputTargetBlock('DELTA');
           const delta = inner ? parseFloat(evalValue(inner)) || 0 : 0;
-          const cur   = window._userVars[key] != null ? window._userVars[key] : 0;
-          window._userVars[key] = cur + delta;
+          const cur   = window._userVars[name] != null ? window._userVars[name] : 0;
+          window._userVars[name] = cur + delta;
           return;
         }
         // ═══ 사용자 정의 함수 호출 (반환값 없음) ═══
@@ -1698,8 +1865,8 @@ async function sendServo(pin, angle) {
      버튼 이벤트
      ============================================================ */
   function setupButtonEvents() {
-      document.getElementById('btnClear')?.addEventListener('click', () => {
-      if (confirm('작성 중인 블록 코드를 모두 지우시겠습니까?\n(현재 미션의 저장본도 함께 삭제됩니다.)')) {
+      document.getElementById('btnClear')?.addEventListener('click', async () => {
+      if (await window.customConfirm('작성 중인 블록 코드를 모두 지우시겠습니까?\n(현재 미션의 저장본도 함께 삭제됩니다.)')) {
         workspace.clear();
         if (MissionProgress.current) {
           WorkspaceStorage.clear(MissionProgress.current);
@@ -1717,7 +1884,7 @@ async function sendServo(pin, angle) {
       const hasProgress = MissionProgress.done.size > 0;
       const hasSavedWork = Object.keys(localStorage).some(k => k.startsWith('cubelink_ws_'));
       if (!hasProgress && !hasSavedWork) {
-        alert('초기화할 내용이 없습니다.');
+        await window.customAlert('초기화할 내용이 없습니다.');
         return;
       }
       if (await window.customConfirm(`미션 완료 기록(${MissionProgress.done.size}개)과\n저장된 작업물을 모두 삭제합니다.\n계속하시겠습니까?`)) {
@@ -1743,9 +1910,9 @@ async function sendServo(pin, angle) {
     });
 
 
-    document.getElementById('btnReload')?.addEventListener('click', () => {
+    document.getElementById('btnReload')?.addEventListener('click', async () => {
       if (!currentMissionId) return;
-      if (!confirm('현재 작업을 버리고 미션을 다시 처음부터 시작하시겠습니까?\n(저장된 작업물도 삭제됩니다.)')) return;
+      if (!await window.customConfirm('현재 작업을 버리고 미션을 다시 처음부터 시작하시겠습니까?\n(저장된 작업물도 삭제됩니다.)')) return;
       // 1. 저장본 삭제
       WorkspaceStorage.clear(currentMissionId);
       // 2. workspace 초기화 (빈 setup/loop)
@@ -1779,9 +1946,12 @@ async function sendServo(pin, angle) {
       setTimeout(triggerResize, 150);
     });
 
-    document.getElementById('btnRunRealtime')?.addEventListener('click', () => {
-      if (!window._serialPort || !window._serialPort.writable) {
-        alert('로봇이 연결되지 않았습니다.\n시뮬레이션 시작 단추를 누르세요');
+    document.getElementById('btnRunRealtime')?.addEventListener('click', async () => {
+      const selectedMode = ['real', 'sim', 'twin'].includes(window.actionMode)
+        ? window.actionMode
+        : 'real';
+      if (selectedMode !== 'sim' && (!window._serialPort || !window._serialPort.writable)) {
+        await window.customAlert('로봇이 연결되지 않았습니다.\n시뮬레이션 시작 단추를 누르세요');
         return;
       }
       runProgram();
@@ -1824,14 +1994,10 @@ async function sendServo(pin, angle) {
   function showRunLock(isRealtime) {
     hideRunLock(); // 중복 방지
     const colorClass = isRealtime ? 'real' : 'sim';
-    const mainMsg = isRealtime
-      ? '▶ 실물 로봇 실행 중입니다.<br>⏹ 정지 후 편집하세요.'
-      : '🎮 시뮬레이션 실행 중입니다.<br>⏹ 정지 후 편집하세요.';
-    // Block editing during either physical or simulated execution. Live edits
-    // can change the remaining command stream after the arm has already moved.
+    // 실행 중에는 시리얼 모니터를 제외한 미션/블록 작업공간을 모두 잠근다.
     const targets = [
-      { el: document.querySelector('.panel-center'), compact: false, msg: mainMsg },
-      { el: document.querySelector('.panel-left'),   compact: true,  msg: '🔒 실행 중' }
+      { el: document.querySelector('.panel-left'), compact: true, msg: '🔒 실행 중' },
+      { el: document.querySelector('.panel-center'), compact: false, msg: isRealtime ? '🔴 실물 실행 중' : '🎮 시뮬레이션 실행 중' }
     ];
     targets.forEach(t => {
       if (!t.el) return;
@@ -1843,17 +2009,15 @@ async function sendServo(pin, angle) {
       ov.className = 'run-lock-overlay ' + colorClass + (t.compact ? ' compact' : '');
       ov.innerHTML = `<div class="run-lock-msg">${t.msg}</div>`;
            // ▼▼▼ v2.9.4 교체: 시리얼 모니터를 오버레이 위로 끌어올려 항상 보이게 ▼▼▼
-      if (t.compact) {
-        const monitor = document.getElementById('serialMonitorBar');
-        // 시리얼 모니터가 이 패널 안에 있을 때만 (졸업 전 일반 모드)
-        if (monitor && monitor.parentElement === t.el) {
-          // 1) 오버레이 하단을 시리얼 모니터 높이만큼 비움 (클릭 차단 영역에서 제외)
-          ov.style.bottom = monitor.offsetHeight + 'px';
-          // 2) 시리얼 모니터를 오버레이(z-index:5000)보다 위로 올려 확실히 노출
-          monitor.dataset.runlockZ = monitor.style.zIndex || '';
-          monitor.style.position = 'relative';
-          monitor.style.zIndex = '5001';
-        }
+      const monitor = document.getElementById('serialMonitorBar');
+      // 일반/자유 코딩 화면 어디에 있든 시리얼 모니터만 잠금 영역에서 제외한다.
+      if (monitor && monitor.parentElement === t.el) {
+        // 1) 오버레이 하단을 시리얼 모니터 높이만큼 비움 (클릭 차단 영역에서 제외)
+        ov.style.bottom = monitor.offsetHeight + 'px';
+        // 2) 시리얼 모니터를 오버레이(z-index:5000)보다 위로 올려 확실히 노출
+        monitor.dataset.runlockZ = monitor.style.zIndex || '';
+        monitor.style.position = 'relative';
+        monitor.style.zIndex = '5001';
       }
       // ▲▲▲ 교체 끝 ▲▲▲
    ov.addEventListener('click', (e) => {
@@ -1883,8 +2047,61 @@ async function sendServo(pin, angle) {
       delete monitor.dataset.runlockZ;
     }
   }
- window.showRunLock = showRunLock;
+  window.showRunLock = showRunLock;
   window.hideRunLock = hideRunLock;
+
+  // USB 분리/재연결이 실행 중 발생하면 runProgram의 비동기 finally를
+  // 기다리지 않고 화면 잠금을 즉시 해제한다. 그렇지 않으면 재연결 뒤에도
+  // Blockly 필드가 회색으로 남아 창을 전환해야 다시 입력되는 현상이 생긴다.
+  function stopRuntimeForSerialTransition() {
+    window._runtimeRunning = false;
+    hideRunLock();
+    const simStatusEl = document.getElementById('simStatus');
+    if (simStatusEl) {
+      simStatusEl.textContent = '● 대기 중';
+      simStatusEl.classList.remove('running');
+    }
+  }
+  window.stopRuntimeForSerialTransition = stopRuntimeForSerialTransition;
+
+  // Web Serial 권한창/Windows COM 재연결 뒤 Chromium과 Blockly가 서로 다른
+  // 포커스 상태를 기억할 수 있다. 열려 있던 필드 편집기를 닫고 제스처를
+  // 취소한 다음 작업공간과 Electron 창 포커스를 한 번에 복구한다.
+  function restoreBlocklyInteractionAfterSerial() {
+    if (window._runtimeRunning) return;
+    hideRunLock();
+    try { Blockly.hideChaff(); } catch (_) {}
+    try { Blockly.WidgetDiv && Blockly.WidgetDiv.hide(); } catch (_) {}
+    try {
+      if (Blockly.DropDownDiv && Blockly.DropDownDiv.hideWithoutAnimation) {
+        Blockly.DropDownDiv.hideWithoutAnimation();
+      }
+    } catch (_) {}
+    try {
+      if (workspace && typeof workspace.cancelCurrentGesture === 'function') {
+        workspace.cancelCurrentGesture();
+      }
+    } catch (_) {}
+
+    setTimeout(() => {
+      if (window._runtimeRunning || !workspace) return;
+      try { window.focus(); } catch (_) {}
+      try {
+        if (window.cubelink && window.cubelink.focusWindow) {
+          window.cubelink.focusWindow();
+        }
+      } catch (_) {}
+      try {
+        const svg = workspace.getParentSvg();
+        if (svg) {
+          if (!svg.hasAttribute('tabindex')) svg.setAttribute('tabindex', '-1');
+          svg.focus({ preventScroll: true });
+        }
+        triggerResize();
+      } catch (_) {}
+    }, 80);
+  }
+  window.restoreBlocklyInteractionAfterSerial = restoreBlocklyInteractionAfterSerial;
 
 
   function appendSerialLog(msg) {
@@ -1913,25 +2130,62 @@ async function sendServo(pin, angle) {
 /* ============================================================
    CUBELINK Studio 대문(스플래시) 페이지 동작 제어
    ============================================================ */
-// 네이티브 confirm 대체 (exe에서 포커스 안 뺏기는 HTML 확인창)
-window.customConfirm = function(message) {
-  return new Promise((resolve) => {
+// Windows Electron의 alert/confirm 종료 후 입력 포커스 손실을 피하기 위해
+// 모든 안내·확인창을 HTML 모달 하나로 직렬 처리한다.
+let cubelinkDialogQueue = Promise.resolve();
+function queueCubelinkDialog(message, mode) {
+  const showDialog = () => new Promise((resolve) => {
     const modal = document.getElementById('confirmModal');
     const msg = document.getElementById('confirmModalMsg');
     const okBtn = document.getElementById('confirmModalOk');
     const cancelBtn = document.getElementById('confirmModalCancel');
-    if (!modal) { resolve(window.confirm(message)); return; }
+    if (!modal || !msg || !okBtn || !cancelBtn) {
+      console.error('CubeLink HTML 대화상자를 찾을 수 없습니다:', message);
+      resolve(mode === 'alert');
+      return;
+    }
     msg.textContent = message;
+    cancelBtn.style.display = mode === 'confirm' ? '' : 'none';
     modal.style.display = 'flex';
+    let settled = false;
+    const onKey = (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        cleanup(true);
+      } else if (event.key === 'Escape' && mode === 'confirm') {
+        event.preventDefault();
+        cleanup(false);
+      }
+    };
     const cleanup = (result) => {
+      if (settled) return;
+      settled = true;
       modal.style.display = 'none';
+      cancelBtn.style.display = '';
       okBtn.onclick = null;
       cancelBtn.onclick = null;
-      resolve(result);
+      document.removeEventListener('keydown', onKey, true);
+      setTimeout(() => {
+        if (window.restoreBlocklyInteractionAfterSerial) {
+          window.restoreBlocklyInteractionAfterSerial();
+        }
+      }, 0);
+      resolve(mode === 'alert' ? true : result);
     };
     okBtn.onclick = () => cleanup(true);
     cancelBtn.onclick = () => cleanup(false);
+    document.addEventListener('keydown', onKey, true);
+    setTimeout(() => okBtn.focus({ preventScroll: true }), 0);
   });
+  const queued = cubelinkDialogQueue.then(showDialog, showDialog);
+  cubelinkDialogQueue = queued.catch(() => {});
+  return queued;
+}
+window.customConfirm = function(message) {
+  return queueCubelinkDialog(message, 'confirm');
+};
+window.customAlert = function(message) {
+  return queueCubelinkDialog(message, 'alert');
 };
 
 function setupIntroPage() {
@@ -1967,10 +2221,10 @@ function setupIntroPage() {
     btnSafe.addEventListener('click', async () => {
       const port = window._serialPort;
       if (!port || !port.writable) {
-        alert('로봇이 연결되어 있지 않습니다.');
+        await window.customAlert('로봇이 연결되어 있지 않습니다.');
         return;
       }
-      if (!confirm('서보를 안전 위치로 정렬한 뒤 연결을 종료합니다.\n계속할까요?')) return;
+      if (!await window.customConfirm('서보를 안전 위치로 정렬한 뒤 연결을 종료합니다.\n계속할까요?')) return;
       btnSafe.disabled = true;
       let parkedConfirmed = false;
 
@@ -1980,36 +2234,30 @@ function setupIntroPage() {
         await new Promise(r => setTimeout(r, 100));
       }
       if (port.writable.locked) {
-        alert('실시간 실행을 완전히 중지하지 못했습니다. 잠시 후 다시 시도하세요.');
+        await window.customAlert('실시간 실행을 완전히 중지하지 못했습니다. 잠시 후 다시 시도하세요.');
         btnSafe.disabled = false;
         return;
       }
 
-      // 실제 주차 동작과 EEPROM SAFE 기록은 펌웨어의 K 명령 한 곳에서만
-      // 수행한다. Studio가 먼저 S 명령으로 움직이면 서로 다른 펌웨어
-      // 보관각과 충돌하여 한 축이 두 번 움직일 수 있다.
-      const safePos = [ [6, 90], [11, 90], [9, 30], [10, 160] ];
       let writer = null;
       try {
         writer = await (window.acquireSerialWriter
           ? window.acquireSerialWriter(port)
           : Promise.resolve(port.writable.getWriter()));
         const enc = new TextEncoder();
+        // 브라우저가 기억한 각도는 수동조작·재연결 후 실제 각도와 다를 수 있다.
+        // 사전 S 명령을 보내지 않고, 실제 마지막 명령 각도를 가진 펌웨어가
+        // 현재 위치에서 보관 자세까지 한 번만 순차 이동하도록 맡긴다.
         const parked = window.waitForBoardResponse('PARKED', 30000);
         await writer.write(enc.encode('K\n'));
         writer.releaseLock();
         writer = null;
         await parked;
-        for (const [pin, target] of safePos) {
-          if (window.Sim) Sim.setServoAngle(pin, target);
-          window.servoAngles = window.servoAngles || {};
-          window.servoAngles[pin] = target;
-        }
         parkedConfirmed = true;
 
       } catch (e) {
         console.warn('안전 종료 중 오류:', e);
-        alert('안전 종료 중 오류: ' + e.message);
+        await window.customAlert('안전 종료 중 오류: ' + e.message);
       } finally {
         try { writer && writer.releaseLock(); } catch (_) {}  // ★ 반드시 락 해제
       }
@@ -2019,12 +2267,11 @@ function setupIntroPage() {
     });
   }
 
-  // ===== 연결 상태에 따라 안전 종료 버튼 표시/숨김 =====
+  // ===== 연결 상태에 따라 안전 종료 버튼 표시 =====
   setInterval(() => {
     const b = document.getElementById('btnSafeShutdown');
-    if (!b) return;
     const connected = !!(window._serialPort && window._serialPort.writable);
-    b.style.display = connected ? '' : 'none';
+    if (b) b.style.display = connected ? '' : 'none';
   }, 500);
 
 }

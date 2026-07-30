@@ -13,6 +13,10 @@
   let containerEl;
   let initialized = false;
   let animId = null;
+  let lastFrameTime = 0;
+  const targetAngles = {};
+  const displayedAngles = {};
+  const timedMoves = {};
 
   const MODEL_BASE = 'models/';
   const MODELS = ['base', 'lower', 'upper', 'grip01', 'grip02'];
@@ -105,10 +109,47 @@
   }
 
   /* ---------- 렌더 루프 ---------- */
-  function animate() {
+  function animate(now) {
     animId = requestAnimationFrame(animate);
+    advanceServoAnimation(typeof now === 'number' ? now : performance.now());
     if (controls) controls.update();
     renderer.render(scene, camera);
+  }
+
+  function advanceServoAnimation(now) {
+    const dt = lastFrameTime > 0
+      ? Math.max(0.001, Math.min(0.05, (now - lastFrameTime) / 1000))
+      : (1 / 60);
+    lastFrameTime = now;
+    // 약 20Hz로 도착하는 명령 사이를 화면 주사율에 맞춰 부드럽게 연결한다.
+    const blend = 1 - Math.exp(-24 * dt);
+
+    Object.keys(timedMoves).forEach(key => {
+      const pin = parseInt(key, 10);
+      const move = timedMoves[key];
+      if (!window._runtimeRunning) {
+        targetAngles[key] = displayedAngles[key];
+        delete timedMoves[key];
+        return;
+      }
+      const progress = Math.max(0, Math.min(1, (now - move.startTime) / move.duration));
+      applyServoPose(pin, move.start + (move.target - move.start) * progress);
+      if (progress >= 1) delete timedMoves[key];
+    });
+
+    Object.keys(targetAngles).forEach(key => {
+      if (timedMoves[key]) return;
+      const pin = parseInt(key, 10);
+      const target = targetAngles[key];
+      const current = displayedAngles[key];
+      if (!Number.isFinite(current)) {
+        applyServoPose(pin, target);
+        return;
+      }
+      const delta = target - current;
+      const next = Math.abs(delta) < 0.02 ? target : current + delta * blend;
+      applyServoPose(pin, next);
+    });
   }
 
   function onResize() {
@@ -276,15 +317,7 @@
   }
 
   /* ---------- 서보 회전 ---------- */
-  function setServoAngle(pin, angle) {
-    const pId = parseInt(pin, 10);
-    const a = parseFloat(angle);
-    if (isNaN(a)) return;
-
-    // 시뮬이 움직일 때만 3D 화면 확대
-    if (window.triggerRobotZoom) window.triggerRobotZoom();
-
-
+  function applyServoPose(pId, a) {
     const group = joints[pId];
     const rad = (a - 90) * Math.PI / 180;
 
@@ -294,7 +327,7 @@
       } else if (pId === 9) {
         group.rotation.z = rad;       // 하단 암 피치
       } else if (pId === 10) {
-        group.rotation.z = -rad;       // 상단 암 피치
+        group.rotation.z = rad;        // 실물 10번 서보와 같은 방향
       }
     }
 
@@ -310,6 +343,43 @@
     const fillBar   = document.getElementById('servoFill' + pId);
     if (angleSpan) angleSpan.innerText = Math.round(a);
     if (fillBar) fillBar.style.width = ((a / 180) * 100) + '%';
+    displayedAngles[pId] = a;
+  }
+
+  function setServoAngle(pin, angle) {
+    const pId = parseInt(pin, 10);
+    const a = parseFloat(angle);
+    if (isNaN(a)) return;
+
+    // 시뮬이 움직일 때만 3D 화면 확대
+    if (window.triggerRobotZoom) window.triggerRobotZoom();
+
+    targetAngles[pId] = a;
+    // 편집·초기화 상태에서는 즉시 반영하고, 실행 중에만 프레임 보간한다.
+    if (!window._runtimeRunning || !Number.isFinite(displayedAngles[pId])) {
+      applyServoPose(pId, a);
+    }
+  }
+
+  function moveServoSmooth(pin, angle, seconds) {
+    const pId = parseInt(pin, 10);
+    const target = parseFloat(angle);
+    const duration = Math.max(0, parseFloat(seconds) || 0) * 1000;
+    if (isNaN(target)) return;
+
+    if (window.triggerRobotZoom) window.triggerRobotZoom();
+    targetAngles[pId] = target;
+    if (!window._runtimeRunning || duration <= 0 || !Number.isFinite(displayedAngles[pId])) {
+      delete timedMoves[pId];
+      applyServoPose(pId, target);
+      return;
+    }
+    timedMoves[pId] = {
+      start: displayedAngles[pId],
+      target,
+      startTime: performance.now(),
+      duration
+    };
   }
 
   /* ---------- 외부 API ---------- */
@@ -317,6 +387,10 @@
     init: init,
     setServoAngle: setServoAngle,
     setServo: setServoAngle,
-    _internals: () => ({ scene, camera, renderer, robotGroup, joints, controls })
+    moveServoSmooth: moveServoSmooth,
+    _internals: () => ({
+      scene, camera, renderer, robotGroup, joints, controls,
+      targetAngles, displayedAngles, timedMoves, advanceServoAnimation
+    })
   };
 })();

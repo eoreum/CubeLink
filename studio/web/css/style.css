@@ -115,6 +115,17 @@ body.graduated .graduation-banner { display: block; }
 .mission-item.done strong::after { content: " ✓"; color: #5cb85c; }
 .mission-num.in-progress { background: var(--gold); color: #000; animation: pulse 1.4s infinite; }
 
+.free-workspace-card {
+  margin: 10px 10px 4px;
+  border: 1px solid rgba(212, 175, 55, 0.65);
+  border-left: 4px solid #D4AF37;
+  border-radius: 9px;
+  background: linear-gradient(135deg, rgba(212,175,55,0.17), rgba(123,92,255,0.12));
+}
+.free-workspace-card strong { color: #FFE082; }
+.free-workspace-card .mission-num { width: 30px; height: 30px; }
+.mission-divider { height: 1px; margin: 10px 14px; background: rgba(212,175,55,0.25); }
+
 @keyframes pulse {
   0%, 100% { box-shadow: 0 0 0 0 var(--gold-glow); }
   50% { box-shadow: 0 0 0 6px transparent; }

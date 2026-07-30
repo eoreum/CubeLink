@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('cubelink', {
+  getVersion: () => ipcRenderer.sendSync('get-app-version'),
   listPorts: () => ipcRenderer.invoke('list-ports'),
   connect:   (p) => ipcRenderer.invoke('connect', p),
   write:     (d) => ipcRenderer.invoke('write', d),

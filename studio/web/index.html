@@ -14,7 +14,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="CUBELINK">
 
-  <title>CubeLink Studio v3.4.4 · The Pinnacle of Robot Education</title>
+  <title>CubeLink Studio v3.6.0 · The Pinnacle of Robot Education</title>
 
   <!-- SEO -->
   <meta name="description" content="CUBELINK Studio - 학생을 위한 무료 로봇팔 블록 코딩 학습 도구. 9단계 미션, 3D 시뮬레이터, 아두이노 실시간 제어를 한 곳에서.">
@@ -75,7 +75,7 @@
            onerror="this.style.display='none'; this.parentNode.textContent='Eoreum';">
     </div>
 
-    <div class="brand-title">CubeLink Studio<span class="brand-version">v3.4.4</span></div>
+    <div class="brand-title">CubeLink Studio<span class="brand-version">v3.6.0</span></div>
   </div>
 
   <div class="header-actions">
@@ -91,7 +91,7 @@
     <span id="portStatusBadge"
       style="display:inline-flex;align-items:center;min-height:34px;padding:0 11px;border:1px solid #555;border-radius:7px;background:#20242a;color:#ddd;font-size:12px;white-space:nowrap;"
       title="현재 USB 시리얼 연결 상태">USB 장치 없음 · 연결 대기</span>
-        <button class="btn" id="btnSafeShutdown" style="display:none; background: linear-gradient(135deg, #e67e22, #d35400) !important; color: white !important; font-weight: 700;"
+    <button class="btn" id="btnSafeShutdown" style="display:none; background: linear-gradient(135deg, #e67e22, #d35400) !important; color: white !important; font-weight: 700;"
       title="서보를 안전 위치로 정렬한 뒤 연결을 종료합니다 (뚜껑 닫기 가능 자세)">
       🔻 안전 종료
     </button>
@@ -395,7 +395,8 @@ window.waitForBoardResponse = function(expected, timeoutMs = 15000) {
     const waiter = { expected, resolve, reject, timer: null };
     waiter.timer = setTimeout(() => {
       window._boardResponseWaiters = window._boardResponseWaiters.filter(w => w !== waiter);
-      reject(new Error(`${expected} 응답 시간 초과`));
+      const label = Array.isArray(expected) ? expected.join('/') : expected;
+      reject(new Error(`${label} 응답 시간 초과`));
     }, timeoutMs);
     window._boardResponseWaiters.push(waiter);
   });
@@ -420,10 +421,30 @@ window.runCubeSafetyStartup = async function(state) {
   setConnectionState('initializing');
   try {
     if (state === 'RECOVERY_REQUIRED') {
-      const confirmed = confirm(
+      // 프로그램만 다시 열렸고 보드는 계속 켜져 있으면, EEPROM 상태는
+      // RECOVERY_REQUIRED여도 서보는 이미 활성 상태일 수 있다.
+      // I 명령은 이 경우 움직임 없이 INIT_OK만 반환하므로 먼저 확인한다.
+      const activeProbe = window.waitForBoardResponse(['INIT_OK', 'ERR'], 5000);
+      await window.sendBoardCommand('I');
+      const probeResponse = await activeProbe;
+      if (probeResponse === 'INIT_OK') {
+        safety.initialized = true;
+        safety.state = 'ACTIVE';
+        setConnectionState('ready');
+        if (window.restoreBlocklyInteractionAfterSerial) {
+          window.restoreBlocklyInteractionAfterSerial();
+        }
+        if (window.showToast) window.showToast('✅ 기존 로봇 세션 연결 복구 완료', 'success', 2500);
+        return;
+      }
+      if (probeResponse !== 'ERR,RECOVERY_REQUIRED') {
+        throw new Error('로봇 상태 확인 실패: ' + probeResponse);
+      }
+
+      const confirmed = await window.customConfirm(
         '이전 사용이 안전 종료로 완료되지 않았습니다.\n\n' +
-        'USB 전원을 분리한 상태에서 로봇팔을 보관 자세로 놓고, 팔을 손으로 지지한 뒤 확인을 누르세요.\n' +
-        '(6번 90°, 9번 10°, 10번 170°, 11번 90°)'
+        'USB 연결은 절대로 빼지 마세요. 모터가 아직 해제된 상태이므로 팔을 손으로 지지하면서 보관 자세로 놓은 뒤 확인을 누르세요.\n' +
+        '(6번 90°, 9번 10°, 10번 10°, 11번 90°)'
       );
       if (!confirmed) {
         if (window.showToast) window.showToast('⚠ 복구 확인 전에는 실물 실행이 잠겨 있습니다.', 'warn', 4000);
@@ -444,6 +465,9 @@ window.runCubeSafetyStartup = async function(state) {
     safety.initialized = true;
     safety.state = 'ACTIVE';
     setConnectionState('ready');
+    if (window.restoreBlocklyInteractionAfterSerial) {
+      window.restoreBlocklyInteractionAfterSerial();
+    }
     if (window.showToast) window.showToast('✅ 안전 초기화 완료', 'success', 2500);
   } catch (error) {
     safety.initialized = false;
@@ -462,11 +486,14 @@ window.parseBoardLine = function(line) {
   if (!s) return;
   const p = s.split(',');
   const head = p[0];
-  const waiter = window._boardResponseWaiters.find(w => w.expected === head);
+  const waiter = window._boardResponseWaiters.find(w =>
+    Array.isArray(w.expected) ? w.expected.includes(head) : w.expected === head
+  );
   if (waiter) {
     clearTimeout(waiter.timer);
     window._boardResponseWaiters = window._boardResponseWaiters.filter(w => w !== waiter);
     waiter.resolve(s);
+    if (head === 'ERR') return;
   }
   if (head === 'READY' || head === 'PONG') {
     console.log('🟢 보드 응답:', s);
@@ -486,25 +513,15 @@ window.parseBoardLine = function(line) {
     }
     const version = p[2] || '';
     const safetyState = p[3] || 'UNKNOWN';
-    const poseProfile = p[4] || '';
-    const requiredVersion = 'v1.4.2';
-    const requiredPoseProfile = 'PARK_90_30_160_90';
-    if (version !== requiredVersion || poseProfile !== requiredPoseProfile) {
-      window._cubeSafety.state = 'INCOMPATIBLE';
+    const supportedSafetyVersions = ['v1.4.0', 'v1.4.1', 'v1.4.2'];
+    if (!supportedSafetyVersions.includes(version)) {
+      window._cubeSafety.state = 'LEGACY';
       window._cubeSafety.initialized = false;
       setConnectionState('failed');
-      const detail = version !== requiredVersion
-        ? `${version || 'UNKNOWN'} — ${requiredVersion} 필요`
-        : '보관 자세 프로필 불일치';
-      window.updatePortStatusBadge('failed', `호환되지 않는 펌웨어: ${detail}`);
-      if (window.showToast) {
-        window.showToast('⚠ 9번=30°, 10번=160° 보관 자세가 포함된 최신 v1.4.2 펌웨어를 다시 업로드하세요.', 'warn', 6000);
-      }
+      window.updatePortStatusBadge('failed', `지원하지 않는 펌웨어 ${version || 'UNKNOWN'}`);
+      if (window.showToast) window.showToast('⚠ 안전 프로토콜 v1.4.0 이상 펌웨어가 필요합니다.', 'warn', 5000);
       return;
     }
-    // A valid PONG proves both directions of the serial link are working.
-    window._lastPongAt = Date.now();
-    window._pingOutstandingAt = 0;
     window.runCubeSafetyStartup(safetyState);
     return;
   }
@@ -528,10 +545,6 @@ window._connState = 'idle';
 window._reconnecting = false;
 window._autoReconnect =  false;  // v2.8.9: brown-out 무한 루프 차단 — 수동 재연결만 허용
 window._selectedPortLabel = 'USB 장치 없음';
-window._lastPongAt = 0;
-window._pingOutstandingAt = 0;
-window._heartbeatBusy = false;
-window._connectionLossHandling = false;
 
 window.describeSerialPort = function(port) {
   try {
@@ -562,39 +575,6 @@ window.updatePortStatusBadge = function(state, detail) {
   badge.textContent = `${device} · ${detail || labels[state] || state}`;
   badge.style.borderColor = colors[state] || '#555';
   badge.style.color = colors[state] || '#ddd';
-};
-
-window.restoreStudioInputFocus = function(reason) {
-  clearTimeout(window._restoreStudioFocusTimer);
-  window._restoreStudioFocusTimer = setTimeout(async () => {
-    try {
-      const active = document.activeElement;
-      if (active && active !== document.body && typeof active.blur === 'function') active.blur();
-      if (typeof Blockly !== 'undefined') {
-        if (Blockly.WidgetDiv && typeof Blockly.WidgetDiv.hide === 'function') Blockly.WidgetDiv.hide();
-        if (Blockly.DropDownDiv && typeof Blockly.DropDownDiv.hideWithoutAnimation === 'function') {
-          Blockly.DropDownDiv.hideWithoutAnimation();
-        }
-      }
-      window.focus();
-      if (window.cubelink && window.cubelink.focusWindow) await window.cubelink.focusWindow();
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        const ws = window.workspace ||
-          (typeof Blockly !== 'undefined' && typeof Blockly.getMainWorkspace === 'function'
-            ? Blockly.getMainWorkspace()
-            : null);
-        const svg = ws && ws.getParentSvg ? ws.getParentSvg() : null;
-        if (svg) {
-          if (!svg.hasAttribute('tabindex')) svg.setAttribute('tabindex', '-1');
-          svg.focus({ preventScroll: true });
-          if (typeof Blockly.svgResize === 'function') Blockly.svgResize(ws);
-        }
-        console.log('⌨️ Blockly 입력 포커스 복구:', reason || 'serial transition');
-      }));
-    } catch (e) {
-      console.warn('Blockly 입력 포커스 복구 실패:', e.message);
-    }
-  }, 80);
 };
 
 window.setConnectionState = function(state) {
@@ -630,6 +610,12 @@ window.fullCleanup = async function(opts) {
   if (window._cleaningUp) return;          // 중복 진입 차단 (disconnect 핸들러 2곳 동시 호출 방지)
   window._cleaningUp = true;
   try {
+    if (window.stopRuntimeForSerialTransition) {
+      window.stopRuntimeForSerialTransition();
+    } else {
+      window._runtimeRunning = false;
+      if (window.hideRunLock) window.hideRunLock();
+    }
     if (window._cubeSafety) {
       window._cubeSafety.initialized = false;
       window._cubeSafety.flowRunning = false;
@@ -648,9 +634,6 @@ window.fullCleanup = async function(opts) {
       clearTimeout(window._handshakeTimer);
       window._handshakeTimer = null;
     }
-    window._lastPongAt = 0;
-    window._pingOutstandingAt = 0;
-    window._heartbeatBusy = false;
     window._readerRunning = false;
     try { await window._reader?.cancel(); } catch(_){}
     try { window._reader?.releaseLock(); } catch(_){}
@@ -677,8 +660,9 @@ window.fullCleanup = async function(opts) {
     }
   } finally {
     window._cleaningUp = false;            // 어떤 경우든 플래그 해제
-    if (typeof window.hideRunLock === 'function') window.hideRunLock();
-    window.restoreStudioInputFocus('serial cleanup');
+    if (window.restoreBlocklyInteractionAfterSerial) {
+      window.restoreBlocklyInteractionAfterSerial();
+    }
   }
 };
 
@@ -724,7 +708,6 @@ async function chooseElectronPort() {
     cancel.style.cssText = 'margin-top:10px;padding:8px 18px;border:0;border-radius:6px;background:#555;color:white;cursor:pointer;float:right;';
     cancel.addEventListener('click', () => {
       overlay.remove();
-      window.restoreStudioInputFocus('port chooser cancelled');
       reject(new Error('USER_CANCELLED'));
     });
     panel.appendChild(cancel);
@@ -841,7 +824,9 @@ window.startCubelinkReader = async function(port) {
   let buf = '';
   console.log('🎧 CUBELINK 리더 시작');
   setConnectionState('portOpen');
-  window.restoreStudioInputFocus('serial port opened');
+  if (window.restoreBlocklyInteractionAfterSerial) {
+    window.restoreBlocklyInteractionAfterSerial();
+  }
   if (window._handshakeTimer) clearTimeout(window._handshakeTimer);
   window._handshakeTimer = setTimeout(() => {
     if (!window._cubeSafety.initialized && window._connState === 'portOpen') {
@@ -850,51 +835,19 @@ window.startCubelinkReader = async function(port) {
       if (window.showToast) window.showToast('🛑 포트는 열렸지만 CubeLink 펌웨어 응답이 없습니다.', 'error', 5000);
     }
   }, 8000);
-  // The P/PONG heartbeat verifies a complete Studio -> firmware -> Studio
-  // round trip. It is paused while runtime or safety motion owns the writer.
+    // v2.9.0: 펌웨어 v1.1 자율모드 오인 방지 하트비트 (1초마다 P 전송)
   if (window._heartbeatTimer) clearInterval(window._heartbeatTimer);
   window._heartbeatTimer = setInterval(async () => {
     if (!window._serialPort || !window._serialPort.writable) {
       clearInterval(window._heartbeatTimer); window._heartbeatTimer = null; return;
     }
-    if (['idle', 'lost', 'failed'].includes(window._connState)) return;
-    if (window._runtimeRunning ||
-        (window._cubeSafety && window._cubeSafety.flowRunning)) {
-      window._pingOutstandingAt = 0;
-      return;
-    }
-    if (window._heartbeatBusy) return;
-
-    const now = Date.now();
-    if (window._connState === 'ready' &&
-        window._pingOutstandingAt &&
-        now - window._pingOutstandingAt > 4500) {
-      if (window._connectionLossHandling) return;
-      window._connectionLossHandling = true;
-      try {
-        setConnectionState('lost');
-        window.updatePortStatusBadge('lost', '펌웨어 응답 중단');
-        if (window.showToast) {
-          window.showToast('⚠ USB 포트는 열려 있지만 CubeLink 응답이 중단되었습니다. 다시 연결해 주세요.', 'warn', 5000);
-        }
-        await window.fullCleanup({ silent: true });
-        setConnectionState('lost');
-      } finally {
-        window._connectionLossHandling = false;
-      }
-      return;
-    }
-
-    window._heartbeatBusy = true;
+    if (window._runtimeRunning) return;     // 실행 중엔 S/L 명령이 흐르므로 생략
+    if (window._cubeSafety && window._cubeSafety.flowRunning) return;
     try {
       const w = await window.acquireSerialWriter(window._serialPort, 300);
-      try {
-        await w.write(new TextEncoder().encode('P\n'));
-        if (!window._pingOutstandingAt) window._pingOutstandingAt = Date.now();
-      }
+      try { await w.write(new TextEncoder().encode('P\n')); }
       finally { try { w.releaseLock(); } catch(_){} }
     } catch(_) { /* 다른 곳이 writer 점유 중 — 다음 주기 재시도 */ }
-    finally { window._heartbeatBusy = false; }
   }, 1000);
 
 
@@ -1034,15 +987,10 @@ window.addEventListener('load', () => {
         const port = await getCleanPort(false);
         await window.startCubelinkReader(port);
       } catch(e) {
-        if (e.message === 'USER_CANCELLED') {
-          setConnectionState('idle');
-          window.restoreStudioInputFocus('connect cancelled');
-          return;
-        }
+        if (e.message === 'USER_CANCELLED') { setConnectionState('idle'); return; }
         console.warn('연결 실패:', e.message);
         setConnectionState('failed');
         showConnectionTroubleshoot(e.message);
-        window.restoreStudioInputFocus('connect failed');
       }
     }, true);
   }
@@ -1053,7 +1001,8 @@ window.addEventListener('load', () => {
     if (!window._autoReconnect) return;
     if (window._connState === 'connected' || window._connState === 'connecting') return;
 
-    window._runtimeRunning = false;  // v2.8.9: 자동 재연결 시 실행 중단
+    if (window.stopRuntimeForSerialTransition) window.stopRuntimeForSerialTransition();
+    else window._runtimeRunning = false;
     await window.fullCleanup({ silent: true });
     setConnectionState('connecting');
     await new Promise(r => setTimeout(r, 1500));
@@ -1075,7 +1024,6 @@ window.addEventListener('load', () => {
       } catch(err2) {
         console.warn('2차 시도도 실패:', err2.message);
         setConnectionState('failed');
-        window.restoreStudioInputFocus('automatic reconnect failed');
       }
     }
   });
@@ -1083,14 +1031,14 @@ window.addEventListener('load', () => {
   /* 전역 disconnect 이벤트 */
   navigator.serial.addEventListener('disconnect', async (e) => {
     console.warn('🔌 navigator.serial.disconnect 이벤트:', e.target);
-    window._runtimeRunning = false;  // v2.8.9: USB 분리 시 실행 즉시 중단
+    if (window.stopRuntimeForSerialTransition) window.stopRuntimeForSerialTransition();
+    else window._runtimeRunning = false;
     setConnectionState('lost');
     await window.fullCleanup({ silent: true });
     setConnectionState('lost');
     if (typeof window.showToast === 'function') {
       window.showToast('⚠️ USB 분리됨 — 재삽입을 기다리는 중', 'warn', 3000);
     }
-    window.restoreStudioInputFocus('USB disconnected');
   });
 
   /* v2.8.9: 페이지 로드 시 자동 연결 비활성화 — 사용자가 [연결] 버튼을 직접 눌러야 함 */
@@ -1562,21 +1510,14 @@ window.addEventListener('load', () => {
 
     if (btnRun && btnRun.dataset.modeBound !== '1') {
       btnRun.dataset.modeBound = '1';
-      btnRun.addEventListener('click', () => {
-        // The hidden twin command intentionally selects simultaneous physical
-        // and graphic output. Preserve that selection when its run button is
-        // clicked; only ordinary real-time execution should force real mode.
-        if (window.actionMode !== 'twin') {
-          window.setActionMode('real', { silent:false });
-        }
-      }, true);
+      // 명령으로 선택한 real/sim/twin 모드를 실행 버튼이 덮어쓰지 않는다.
+      // 기본값이 real이므로 별도 명령 없이 누르면 기존처럼 실물만 실행된다.
     }
   }
 
   window.unlockTwinMode = function() {
     if (window.twinUnlocked) {
-      window.setActionMode('twin', { silent:true });
-      window.showToast('디지털 트윈 모드를 다시 활성화했습니다', 'info');
+      window.showToast('이미 디지털 트윈이 활성화되어 있습니다', 'info');
       return;
     }
     window.twinUnlocked = true;
@@ -1591,20 +1532,6 @@ window.addEventListener('load', () => {
   const CMD_RESET   = ['초기화', 'reset', 'lock', '잠금'];
   const CMD_HELP    = ['help', '도움말', '?'];
   const CMD_VERSION = ['version', '버전', 'ver'];
-  const SECRET_JOY_ON  = ['조이스틱수동', '수동조종', 'joystickmanual', 'joymanual'];
-  const SECRET_JOY_OFF = ['조이스틱종료', '수동조종종료', 'joystickoff', 'joyoff'];
-  const JOY_DEADZONE = 120;
-  const JOY_AXIS_MARGIN = 35;
-  const JOY_STEP_MS = 50;
-
-  window._joystickManual = window._joystickManual || {
-    enabled: false,
-    timer: null,
-    busy: false,
-    centers: null,
-    previousAxis: { left: 0, right: 0 }
-  };
-  window._joystickSeen = window._joystickSeen || { 1: false, 2: false };
 
   function normalize(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ''); }
   function matches(input, list) {
@@ -1624,179 +1551,26 @@ window.addEventListener('load', () => {
     mon.scrollTop = mon.scrollHeight;
   }
 
-  function selectDominantAxis(dx, dy, previousAxis) {
-    const ax = Math.abs(dx);
-    const ay = Math.abs(dy);
-    if (ax < JOY_DEADZONE && ay < JOY_DEADZONE) return 0;
-    if (previousAxis === 1 && ax >= JOY_DEADZONE && ax + JOY_AXIS_MARGIN >= ay) return 1;
-    if (previousAxis === 2 && ay >= JOY_DEADZONE && ay + JOY_AXIS_MARGIN >= ax) return 2;
-    return ax >= ay ? (ax >= JOY_DEADZONE ? 1 : 0) : (ay >= JOY_DEADZONE ? 2 : 0);
-  }
-
-  function disableJoystickManual(reason, quiet) {
-    const state = window._joystickManual;
-    if (state.timer) clearInterval(state.timer);
-    state.timer = null;
-    state.enabled = false;
-    state.centers = null;
-    state.previousAxis = { left: 0, right: 0 };
-    if (!quiet) {
-      appendToMonitor('✓ 조이스틱 수동조종 종료' + (reason ? ' — ' + reason : ''), '#3498db');
-      window.showToast('🕹️ 조이스틱 수동조종 종료', 'info', 2500);
-    }
-  }
-  window.disableJoystickManual = disableJoystickManual;
-
-  function getManualServoChanges() {
-    const state = window._joystickManual;
-    const data = window.joystickData || {};
-    const left = data.left || {};
-    const right = data.right || {};
-    const centers = state.centers;
-    if (!centers) return [];
-
-    const dx1 = Number(left.x) - centers.left.x;
-    const dy1 = Number(left.y) - centers.left.y;
-    const dx2 = Number(right.x) - centers.right.x;
-    const dy2 = Number(right.y) - centers.right.y;
-    const axis1 = selectDominantAxis(dx1, dy1, state.previousAxis.left);
-    const axis2 = selectDominantAxis(dx2, dy2, state.previousAxis.right);
-    state.previousAxis.left = axis1;
-    state.previousAxis.right = axis2;
-
-    const angles = window.servoAngles = window.servoAngles || { 6:90, 9:90, 10:90, 11:90 };
-    const changes = [];
-    const add = (pin, delta, min, max) => {
-      if (!delta) return;
-      const current = Number.isFinite(Number(angles[pin])) ? Number(angles[pin]) : 90;
-      const next = Math.max(min, Math.min(max, Math.round(current + delta)));
-      if (next !== current) changes.push({ pin, logicalAngle: next, min, max });
-    };
-
-    if (axis1 === 2) {
-      add(6, dy1 < -JOY_DEADZONE ? -1 : (dy1 > JOY_DEADZONE ? 1 : 0), 10, 170);
-    } else if (axis1 === 1) {
-      add(9, dx1 < -JOY_DEADZONE ? 1 : (dx1 > JOY_DEADZONE ? -1 : 0), 30, 170);
-    }
-    if (axis2 === 2) {
-      add(11, dy2 < -JOY_DEADZONE ? 1 : (dy2 > JOY_DEADZONE ? -1 : 0), 50, 120);
-    } else if (axis2 === 1) {
-      add(10, dx2 < -JOY_DEADZONE ? -1 : (dx2 > JOY_DEADZONE ? 1 : 0), 10, 160);
-    }
-    return changes;
-  }
-
-  async function serviceJoystickManual() {
-    const state = window._joystickManual;
-    if (!state.enabled || state.busy) return;
-    const ready = window._serialPort && window._serialPort.writable &&
-                  window._connState === 'ready' &&
-                  window._cubeSafety && window._cubeSafety.initialized;
-    if (!ready || window._runtimeRunning) {
-      disableJoystickManual(ready ? '블록 실행 시작' : '연결 또는 안전 초기화 해제');
-      return;
-    }
-
-    const changes = getManualServoChanges();
-    if (!changes.length) return;
-    state.busy = true;
-    let writer = null;
-    try {
-      writer = await window.acquireSerialWriter(window._serialPort);
-      const commands = changes.map(change => {
-        const offset = window.getServoOffset ? Number(window.getServoOffset(change.pin)) || 0 : 0;
-        const physicalAngle = Math.max(change.min, Math.min(change.max, Math.round(change.logicalAngle + offset)));
-        return `S,${change.pin},${physicalAngle}\n`;
-      }).join('');
-      await writer.write(new TextEncoder().encode(commands));
-      for (const change of changes) window.servoAngles[change.pin] = change.logicalAngle;
-    } catch (error) {
-      console.warn('조이스틱 수동조종 전송 오류:', error);
-      disableJoystickManual('시리얼 전송 오류');
-    } finally {
-      try { if (writer) writer.releaseLock(); } catch (_) {}
-      state.busy = false;
-    }
-  }
-
-  function enableJoystickManual() {
-    const state = window._joystickManual;
-    if (state.enabled) {
-      appendToMonitor('조이스틱 수동조종이 이미 활성화되어 있습니다.', '#888');
-      return;
-    }
-    const ready = window._serialPort && window._serialPort.writable &&
-                  window._connState === 'ready' &&
-                  window._cubeSafety && window._cubeSafety.initialized;
-    if (!ready) {
-      appendToMonitor('조이스틱 수동조종 실패: 실시간 준비 완료 상태가 아닙니다.', '#e74c3c');
-      window.showToast('⚠ 먼저 로봇 연결과 안전 초기화를 완료하세요.', 'warn', 3500);
-      return;
-    }
-    if (window._runtimeRunning) {
-      appendToMonitor('조이스틱 수동조종 실패: 블록 프로그램이 실행 중입니다.', '#e74c3c');
-      return;
-    }
-    if (!window._joystickSeen[1] || !window._joystickSeen[2]) {
-      appendToMonitor('조이스틱 수동조종 실패: 두 조이스틱 값을 아직 받지 못했습니다.', '#e74c3c');
-      window.showToast('⚠ 두 조이스틱을 중립에 놓고 잠시 후 다시 입력하세요.', 'warn', 3500);
-      return;
-    }
-
-    const data = window.joystickData;
-    const centers = {
-      left:  { x:Number(data.left.x),  y:Number(data.left.y) },
-      right: { x:Number(data.right.x), y:Number(data.right.y) }
-    };
-    const centered = [centers.left.x, centers.left.y, centers.right.x, centers.right.y]
-      .every(value => Number.isFinite(value) && Math.abs(value - 512) < 180);
-    if (!centered) {
-      appendToMonitor('조이스틱 수동조종 실패: 스틱을 모두 중립에 놓고 다시 입력하세요.', '#e74c3c');
-      window.showToast('⚠ 조이스틱 중립 확인이 필요합니다.', 'warn', 3500);
-      return;
-    }
-
-    window.setActionMode('real', { silent:true });
-    state.centers = centers;
-    state.previousAxis = { left: 0, right: 0 };
-    state.enabled = true;
-    state.timer = setInterval(serviceJoystickManual, JOY_STEP_MS);
-    appendToMonitor('✓ 조이스틱 수동조종 활성화 — Studio 안전 제어 경유', '#2ecc71');
-    window.showToast('🕹️ 조이스틱 수동조종 활성화', 'success', 3000);
-  }
-
   function handleCommand(cmd) {
     if (!cmd) return;
     appendToMonitor('> ' + cmd, '#D4AF37');
 
     if (matches(cmd, SECRET_TWIN)) {
-      disableJoystickManual('디지털 트윈 모드 전환', true);
       window.unlockTwinMode();
       appendToMonitor('✓ 디지털 트윈 모드 활성화됨', '#2ecc71');
       return;
     }
-    if (matches(cmd, SECRET_JOY_ON)) {
-      enableJoystickManual();
-      return;
-    }
-    if (matches(cmd, SECRET_JOY_OFF)) {
-      disableJoystickManual();
-      return;
-    }
     if (matches(cmd, CMD_REAL)) {
-      disableJoystickManual('실물 전용 모드 전환', true);
       window.setActionMode('real');
       appendToMonitor('✓ 실물 전용 모드', '#2ecc71');
       return;
     }
     if (matches(cmd, CMD_SIM)) {
-      disableJoystickManual('그래픽 전용 모드 전환', true);
       window.setActionMode('sim');
       appendToMonitor('✓ 그래픽 전용 모드', '#2ecc71');
       return;
     }
     if (matches(cmd, CMD_RESET)) {
-      disableJoystickManual('모드 초기화', true);
       window.twinUnlocked = false;
       window.setActionMode('real', { silent:true });
       appendToMonitor('✓ 모드 초기화 — 실물 전용으로 복귀', '#3498db');
@@ -1812,7 +1586,7 @@ window.addEventListener('load', () => {
       return;
     }
     if (matches(cmd, CMD_VERSION)) {
-      appendToMonitor('CubeLink Studio v3.4.4', '#3498db');
+      appendToMonitor('CubeLink Studio v3.6.0', '#3498db');
       return;
     }
 
@@ -1874,21 +1648,7 @@ window.addEventListener('load', () => {
     const origParse = window.parseBoardLine;
     window.parseBoardLine = function(line) {
       if (!line) return;
-      const parts = String(line).trim().split(',');
-      const head = parts[0];
-      if (head === 'J1' || head === 'J2') {
-        const which = head === 'J1' ? 1 : 2;
-        const side = which === 1 ? 'left' : 'right';
-        const x = Number(parts[1]);
-        const y = Number(parts[2]);
-        const sw = Number(parts[3]);
-        if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(sw)) {
-          window.joystickData = window.joystickData ||
-            { left:{x:512,y:512,sw:0}, right:{x:512,y:512,sw:0} };
-          window.joystickData[side] = { x, y, sw };
-          window._joystickSeen[which] = true;
-        }
-      }
+      const head = String(line).trim().split(',')[0];
       const graphicMsgs = ['A'];
       if (graphicMsgs.includes(head) && !window.shouldUpdateGraphic()) return;
       return origParse.call(this, line);
@@ -1902,14 +1662,6 @@ window.addEventListener('load', () => {
     bindCommandInput();
     patchParseBoardLine();
     updateRunButton();
-    const btnRun = document.getElementById('btnRunRealtime');
-    const btnSafe = document.getElementById('btnSafeShutdown');
-    if (btnRun) btnRun.addEventListener('click', () => {
-      if (window._joystickManual.enabled) disableJoystickManual('블록 실행 시작');
-    }, true);
-    if (btnSafe) btnSafe.addEventListener('click', () => {
-      if (window._joystickManual.enabled) disableJoystickManual('안전 종료 시작', true);
-    }, true);
     console.log('🔀 v2.8.9 동작 모드 + 명령어 시스템 로드됨 (기본: real)');
     console.log('💡 강사용: 시리얼 모니터 입력창에 비밀 단어를 입력하면 디지털 트윈 해제');
   }
@@ -2095,9 +1847,9 @@ window.addEventListener('load', () => {
   }
   window.addEventListener('keydown', calKeyHandler, true);
 
-  function startCalibration() {
+  async function startCalibration() {
     if (!window._serialPort || !window._serialPort.writable) {
-      if (!confirm('로봇이 연결되지 않았습니다.\n연결 없이 오프셋 값만 조정하시겠습니까?\n(미리보기 동작은 생략됩니다)')) return;
+      if (!await window.customConfirm('로봇이 연결되지 않았습니다.\n연결 없이 오프셋 값만 조정하시겠습니까?\n(미리보기 동작은 생략됩니다)')) return;
     }
     calStep = 1;
     document.getElementById('calOverlay').style.display = 'flex';
@@ -2295,4 +2047,3 @@ window.addEventListener('load', () => {
 </body>
 
 </html>
-
