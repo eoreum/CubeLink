@@ -27,3 +27,6 @@ Static regression coverage:
 - `node --test test/firmware-standalone-legacy-arming.test.cjs` verifies the
   measured v1.3.1 raw corner conditions and two-second hold while preserving
   neutral calibration, parked-state, and Studio-session locks.
+- `node --test test/installer-driver-detection.test.cjs` verifies that the
+  Windows installer checks connected PnP problem devices before installing the
+  bundled CH340/CH341 driver and uses the native `pnputil.exe` path.

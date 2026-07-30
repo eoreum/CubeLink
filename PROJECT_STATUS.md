@@ -2,6 +2,26 @@
 
 Last updated: 2026-07-30
 
+## Installer driver-detection fix (2026-07-30)
+
+- CubeLink Studio v3.6.1 no longer attempts CH340/CH341 registration on every
+  installation. The NSIS installer queries connected Windows PnP problem
+  devices and runs the bundled driver installer only when one of the supported
+  WCH VID/PID values is present.
+- Healthy CH340/CH341 COM ports and computers with no connected WCH serial
+  device skip driver installation. Detection failure also fails closed instead
+  of modifying the driver store blindly.
+- The installer now resolves native `pnputil.exe` through `Sysnative` with a
+  `SysDir` fallback, fixing the former 32-bit NSIS/SysWOW64 path failure.
+- The v3.6.1 installer built successfully at
+  `studio/electron/dist-v3.6.1/Cubelink_Studio.exe`, size 104,058,718 bytes,
+  SHA-256
+  `5C68E850987608BA9F1B2DE454D4B73E12194A9FD28579D99F97F34264D07284`.
+  Packaged web resources match source and the required INF, CAT, SYS, and DLL
+  driver files are present. The new installer has not been run or physically
+  tested.
+- This installer-only change does not modify or upload firmware.
+
 ## Desktop handoff verification (2026-07-30)
 
 - Imported the v3.6.0 Studio, Windows installer, driver, and regression-test

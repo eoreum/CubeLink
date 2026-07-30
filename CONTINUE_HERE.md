@@ -1,5 +1,16 @@
 # Continue CubeLink Work Here
 
+Installer correction (2026-07-30): Studio v3.6.1 conditionally installs the
+bundled CH340/CH341 driver only when a connected supported WCH device appears
+in Windows' PnP problem-device list. Healthy COM ports and disconnected devices
+skip driver registration. The NSIS script now reaches native `pnputil.exe`
+through `Sysnative` instead of the failing SysWOW64 route. The corrected
+installer was built successfully at
+`studio\electron\dist-v3.6.1\Cubelink_Studio.exe`; its SHA-256 is
+`5C68E850987608BA9F1B2DE454D4B73E12194A9FD28579D99F97F34264D07284`.
+Static tests and packaged-resource comparison passed. It has not been run or
+physically tested.
+
 Desktop continuation update (2026-07-30): the v3.6.0 Studio handoff source has
 been integrated on `agent/v360-desktop-handoff` without changing `firmware/`.
 Static checks, two handoff regression tests, packaging, resource inspection,

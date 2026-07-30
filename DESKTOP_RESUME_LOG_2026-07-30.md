@@ -150,6 +150,36 @@ Dependency restoration reported 18 npm audit findings: 1 moderate and 17 high.
 No automatic audit fix was applied because a forced dependency rewrite could
 change Electron/packaging behavior and was outside this handoff verification.
 
+## Installer v3.6.1 driver-detection correction
+
+The v3.6.0 installer attempted bundled CH340/CH341 registration unconditionally.
+On the existing development PC this was unnecessary and the 32-bit NSIS process
+also resolved `$SYSDIR\pnputil.exe` through SysWOW64, where `pnputil.exe` was
+absent.
+
+Version 3.6.1 now queries native Windows `pnputil.exe` for connected PnP problem
+devices and installs the bundled driver only if the output contains a supported
+WCH hardware ID from the packaged INF. Healthy CH340/CH341 COM ports, computers
+with no connected WCH device, and failed detection all skip automatic driver
+registration.
+
+Validation completed:
+
+- Conditional-driver regression test passed.
+- Existing firmware and Studio safety regression tests passed.
+- NSIS x64 packaging completed.
+- Packaged web resource hashes match source.
+- Bundled INF, CAT, SYS, and DLL files are present.
+- Installer file/product version: 3.6.1.
+- Installer size: 104,058,718 bytes.
+- Installer SHA-256:
+  `5C68E850987608BA9F1B2DE454D4B73E12194A9FD28579D99F97F34264D07284`.
+- New installer path:
+  `studio/electron/dist-v3.6.1/Cubelink_Studio.exe`.
+
+The v3.6.1 installer was not launched, installed, or physically tested during
+this correction. Firmware was not uploaded or flashed.
+
 ## Hardware and remaining work
 
 - Windows already has `CH341SER.INF` registered as `oem2.inf`, version
