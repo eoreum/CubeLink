@@ -51,7 +51,9 @@ matching Studio safety flow is deployed on the official Eoreum web page, but the
 combined firmware/Studio physical flow is not yet validated. The same firmware
 is intended for both the computer-linked product and the event joystick product.
 Boot leaves servos disabled; after joystick neutral calibration, a cleanly parked
-arm can enter standalone mode using the existing two-stick corner gesture.
+arm can enter standalone mode by holding both joysticks diagonally down and
+inward for two seconds (left down-right, right down-left), then returning both
+sticks to neutral.
 Interrupted standalone sessions require the arm to be physically placed in the
 storage pose and both joystick buttons held for two seconds. Holding both buttons
 in standalone mode parks one axis at a time and detaches all servos. Studio still

@@ -50,3 +50,13 @@ ATmega328P target. A later MiniCore `bootloader=no_bootloader` compile used
 11,164 bytes of flash (34%) and 410 bytes of RAM (20%). Repeated reconnect and
 full physical motion testing are still required. Do not treat this image as
 released production firmware.
+
+For power-only outdoor or event use, standalone manual control is armed only
+after neutral calibration by holding both physical joysticks diagonally down
+and inward for two seconds: left stick down-right and right stick down-left.
+The user must then return both sticks to neutral before motion begins. A
+verified Studio protocol command continues to lock out standalone arming until
+reboot. This gesture change remains source-only until the user explicitly
+authorizes a firmware upload. The exact updated source compiled successfully
+on 2026-07-30 with MiniCore 3.1.2 (`bootloader=no_bootloader`), using 11,164
+bytes of flash and 410 bytes of RAM.
