@@ -1,5 +1,15 @@
 # Continue CubeLink Work Here
 
+Current-protection update (2026-08-02): firmware v1.5.0 and Studio v3.7.0
+candidate sources now implement a two-INA3221/four-servo protection path,
+faulting Blockly-block identification, and monitored reverse rollback. Read
+`docs/CURRENT_PROTECTION_2026-08-02.md` before wiring or testing. The sensor
+thresholds are provisional and require measurements on physical CubeLink arms.
+Mission 9 completion also automatically enters the independently saved free
+workspace. A v3.7.0 candidate installer was built in
+`studio/electron/dist-v3.7.0-current-protection`, but it was not installed or
+released. No firmware was uploaded.
+
 Installer correction (2026-07-30): Studio v3.6.1 conditionally installs the
 bundled CH340/CH341 driver only when a connected supported WCH device appears
 in Windows' PnP problem-device list. Healthy COM ports and disconnected devices

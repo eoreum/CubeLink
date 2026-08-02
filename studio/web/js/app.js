@@ -644,6 +644,11 @@ checkGraduation() {
   if (allDone && !userRestored) {
     document.body.classList.add('graduated');
     if (justCompleted && window.showAllMissionsComplete) window.showAllMissionsComplete();
+    // 마지막 미션 작업물을 먼저 저장한 뒤 독립된 자유 코딩 작업공간으로
+    // 자동 전환한다. 저장된 자유 작업물이 있으면 selectMission이 복원한다.
+    if (justCompleted && this.current !== FREE_WORKSPACE.id) {
+      setTimeout(() => selectMission(FREE_WORKSPACE.id), 0);
+    }
   } else if (!allDone) {
     document.body.classList.remove('graduated');
   }
@@ -1413,6 +1418,52 @@ checkGraduation() {
     window._userVars = {};
     window._runtimeRunning = true;
 
+    let wakeForCurrentFault = null;
+    const currentFaultSignal = new Promise(resolve => { wakeForCurrentFault = resolve; });
+    const servoProtection = {
+      fault: null,
+      rollbackFault: null,
+      recovering: false,
+      nextCommandId: 1,
+      history: [],
+      actions: new Map(),
+      receiveFault(fault) {
+        if (this.recovering) {
+          this.rollbackFault = fault;
+          return;
+        }
+        if (this.fault) return;
+        this.fault = fault;
+        const action = this.actions.get(fault.commandId);
+        const block = action && workspace.getBlockById(action.blockId);
+        if (block) {
+          try {
+            if (typeof workspace.highlightBlock === 'function') workspace.highlightBlock(block.id);
+            if (typeof block.select === 'function') block.select();
+          } catch (_) {}
+        }
+        if (wakeForCurrentFault) wakeForCurrentFault(fault);
+      }
+    };
+    window._servoProtectionRuntime = servoProtection;
+
+    class ServoProtectionError extends Error {
+      constructor(fault) {
+        super(`서보 전류 이상: PIN ${fault.pin || '?'} (${fault.milliAmps || 0}mA)`);
+        this.name = 'ServoProtectionError';
+        this.fault = fault;
+      }
+    }
+
+    async function runtimeDelay(ms) {
+      if (servoProtection.fault) throw new ServoProtectionError(servoProtection.fault);
+      const result = await Promise.race([
+        new Promise(resolve => setTimeout(() => resolve(null), Math.max(0, ms))),
+        currentFaultSignal
+      ]);
+      if (result) throw new ServoProtectionError(result);
+    }
+
     const writer = useSerial
       ? await (window.acquireSerialWriter
           ? window.acquireSerialWriter(port)
@@ -1469,7 +1520,11 @@ async function sendServo(pin, angle, options) {
     if (String(pin) === '11') realAngle = Math.max(50, Math.min(120, realAngle)); // 그리퍼 보호
     else realAngle = Math.max(0, Math.min(180, realAngle));                       // 일반 축 보호
 
-    try { await writer.write(enc.encode(`S,${pin},${realAngle}\n`)); }
+    const commandId = Number(options.commandId) || 0;
+    const command = options.rollback
+      ? `B,${commandId},${pin},${realAngle}`
+      : (commandId ? `M,${commandId},${pin},${realAngle}` : `S,${pin},${realAngle}`);
+    try { await writer.write(enc.encode(command + `\n`)); }
     catch(e) {
       appendSerialLog(`🛑 시리얼 끊김 — 실행 중지: ${e.message}`);
       window._runtimeRunning = false;
@@ -1478,8 +1533,84 @@ async function sendServo(pin, angle, options) {
   }
 
   window.servoAngles[pin] = angle;
-  if (window.MissionProgress) MissionProgress.onSimEvent({ type: 'servo', pin: parseInt(pin), angle: parseFloat(angle) });
+  if (!options.skipMission && window.MissionProgress) {
+    MissionProgress.onSimEvent({ type: 'servo', pin: parseInt(pin), angle: parseFloat(angle) });
+  }
 }
+
+    const beginServoAction = (block, pin, target) => {
+      let commandId = servoProtection.nextCommandId++;
+      if (servoProtection.nextCommandId > 30000) servoProtection.nextCommandId = 1;
+      const action = {
+        commandId,
+        stepNumber: servoProtection.actions.size + 1,
+        blockId: block.id,
+        blockType: block.type,
+        pin: String(pin),
+        before: window.servoAngles[pin] != null ? Number(window.servoAngles[pin]) : 90,
+        target: Number(target)
+      };
+      servoProtection.actions.set(commandId, action);
+      return action;
+    };
+
+    const commitServoAction = action => {
+      servoProtection.history.push(action);
+    };
+
+    async function verifyServoAction(startedAt) {
+      const elapsed = performance.now() - startedAt;
+      await runtimeDelay(useSerial ? Math.max(0, 1100 - elapsed) : Math.max(0, 30 - elapsed));
+    }
+
+    async function rollbackAfterCurrentFault() {
+      const fault = servoProtection.fault;
+      if (!fault || !writer) return;
+      if (fault.kind === 'SENSOR_LOST') {
+        appendSerialLog('🛑 전류센서 통신이 끊겨 모든 서보를 분리했습니다. 배선을 확인한 뒤 전원을 다시 연결하세요.');
+        return;
+      }
+
+      const failedAction = servoProtection.actions.get(fault.commandId) || null;
+      const failedLabel = failedAction ? `${failedAction.stepNumber}번째 실행 블록` : `명령 ${fault.commandId}`;
+      appendSerialLog(`🛑 ${failedLabel} · PIN ${fault.pin}에서 ${fault.milliAmps}mA 감지`);
+      if (window.showToast && failedAction) {
+        window.showToast(`🛑 ${failedAction.stepNumber}번째 블록(PIN ${fault.pin})에서 장애물이 감지되었습니다.`, 'error', 8000);
+      }
+      appendSerialLog('↩ 성공한 서보 동작을 실제 실행 순서의 역순으로 복구합니다.');
+      servoProtection.recovering = true;
+      servoProtection.rollbackFault = null;
+
+      const rollbackSteps = servoProtection.history
+        .filter(action => !failedAction || action.commandId !== failedAction.commandId)
+        .slice()
+        .reverse();
+      if (failedAction) rollbackSteps.push(failedAction);
+
+      try {
+        for (const action of rollbackSteps) {
+          if (servoProtection.rollbackFault) throw new Error('복구 중에도 장애물이 감지되었습니다.');
+          let commandId = servoProtection.nextCommandId++;
+          if (servoProtection.nextCommandId > 30000) servoProtection.nextCommandId = 1;
+          await sendServo(action.pin, action.before, { commandId, rollback: true, skipMission: true });
+          appendSerialLog(`  ↩ PIN ${action.pin} → ${Math.round(action.before)}°`);
+          await new Promise(resolve => setTimeout(resolve, 1100));
+        }
+        if (servoProtection.rollbackFault) throw new Error('복구 중에도 장애물이 감지되었습니다.');
+        const recovery = window.waitForBoardResponse(['RECOVERY_OK', 'ERR'], 4000);
+        await writer.write(enc.encode('C\n'));
+        const response = await recovery;
+        if (response !== 'RECOVERY_OK') throw new Error(response);
+        appendSerialLog('✅ 장애물 해제 및 이전 상태 복구 완료');
+        if (window.showToast) window.showToast('✅ 서보 보호 복구가 완료되었습니다.', 'success', 5000);
+      } catch (error) {
+        appendSerialLog(`🛑 자동 복구 중단: ${error.message}`);
+        try { await writer.write(enc.encode('X\n')); } catch (_) {}
+        if (window.showToast) {
+          window.showToast('🛑 자동 복구 실패 — 로봇 전원을 끄고 장애물을 직접 제거하세요.', 'error', 8000);
+        }
+      }
+    }
 
 
     // ─── 단일 블록 실행 ───
@@ -1493,9 +1624,12 @@ async function sendServo(pin, angle, options) {
           const pin   = b.getFieldValue('PIN');
           const angle = safeAngle(pin, b.getFieldValue('ANGLE'), t);
           if (angle === null) return;
-          await sendServo(pin, angle);
+          const action = beginServoAction(b, pin, angle);
+          const actionStarted = performance.now();
+          await sendServo(pin, angle, { commandId: action.commandId });
           appendSerialLog(`  S,${pin},${angle}`);
-          await new Promise(r => setTimeout(r, 30));
+          await verifyServoAction(actionStarted);
+          commitServoAction(action);
           return;
         }
 
@@ -1506,9 +1640,12 @@ async function sendServo(pin, angle, options) {
           const raw   = inner ? evalValue(inner) : 90;
           const angle = safeAngle(pin, raw, t);
           if (angle === null) return;
-          await sendServo(pin, angle);
+          const action = beginServoAction(b, pin, angle);
+          const actionStarted = performance.now();
+          await sendServo(pin, angle, { commandId: action.commandId });
           appendSerialLog(`  S,${pin},${angle}`);
-          await new Promise(r => setTimeout(r, 30));
+          await verifyServoAction(actionStarted);
+          commitServoAction(action);
           return;
         }
 
@@ -1520,6 +1657,7 @@ async function sendServo(pin, angle, options) {
           const sec    = parseFloat(b.getFieldValue('SEC')) || 1;
           const steps  = Math.max(5, Math.floor(sec * 20));
           const start  = window.servoAngles[pin] != null ? window.servoAngles[pin] : 90;
+          const action = beginServoAction(b, pin, target);
           const useTimedSim = (runtimeMode === 'sim' || runtimeMode === 'twin') &&
             window.Sim && typeof Sim.moveServoSmooth === 'function';
           if (useTimedSim) Sim.moveServoSmooth(pin, target, sec);
@@ -1528,10 +1666,12 @@ async function sendServo(pin, angle, options) {
           for (let i = 1; i <= steps; i++) {
             if (!window._runtimeRunning) return;
             const a = Math.round(start + (target - start) * (i / steps));
-            await sendServo(pin, a, { skipSim: useTimedSim });
+            await sendServo(pin, a, { skipSim: useTimedSim, commandId: action.commandId });
             const remain = moveStarted + (i * stepMs) - performance.now();
-            if (remain > 0) await new Promise(r => setTimeout(r, remain));
+            if (remain > 0) await runtimeDelay(remain);
           }
+          await verifyServoAction(moveStarted);
+          commitServoAction(action);
           return;
         }
 
@@ -1545,6 +1685,7 @@ async function sendServo(pin, angle, options) {
           const sec    = parseFloat(b.getFieldValue('SEC')) || 1;
           const steps  = Math.max(5, Math.floor(sec * 20));
           const start  = window.servoAngles[pin] != null ? window.servoAngles[pin] : 90;
+          const action = beginServoAction(b, pin, target);
           const useTimedSim = (runtimeMode === 'sim' || runtimeMode === 'twin') &&
             window.Sim && typeof Sim.moveServoSmooth === 'function';
           if (useTimedSim) Sim.moveServoSmooth(pin, target, sec);
@@ -1553,10 +1694,12 @@ async function sendServo(pin, angle, options) {
           for (let i = 1; i <= steps; i++) {
             if (!window._runtimeRunning) return;
             const a = Math.round(start + (target - start) * (i / steps));
-            await sendServo(pin, a, { skipSim: useTimedSim });
+            await sendServo(pin, a, { skipSim: useTimedSim, commandId: action.commandId });
             const remain = moveStarted + (i * stepMs) - performance.now();
-            if (remain > 0) await new Promise(r => setTimeout(r, remain));
+            if (remain > 0) await runtimeDelay(remain);
           }
+          await verifyServoAction(moveStarted);
+          commitServoAction(action);
           return;
         }
 
@@ -1570,19 +1713,19 @@ async function sendServo(pin, angle, options) {
         // ═══ 딜레이 ═══
         if (t === 'cubelink_delay' || t === 'cubelink_v2_delay_ms') {
           const ms = parseInt(b.getFieldValue('MS'), 10) || 0;
-          await new Promise(r => setTimeout(r, ms));
+          await runtimeDelay(ms);
           return;
         }
         if (t === 'cubelink_delay_sec') {
           const sec = parseFloat(b.getFieldValue('SEC')) || 0;
-          await new Promise(r => setTimeout(r, sec * 1000));
+          await runtimeDelay(sec * 1000);
           return;
         }
         if (t === 'cubelink_delay_us') {
           // 마이크로초 단위는 브라우저에서 정확 제어 불가 → 최소 1ms로 변환
           const us = parseInt(b.getFieldValue('US'), 10) || 0;
           const ms = Math.max(1, Math.round(us / 1000));
-          await new Promise(r => setTimeout(r, ms));
+          await runtimeDelay(ms);
           return;
         }
 
@@ -1792,6 +1935,7 @@ async function sendServo(pin, angle, options) {
 
         // 알 수 없는 블록 → 조용히 무시
       } catch (blockErr) {
+        if (blockErr && blockErr.name === 'ServoProtectionError') throw blockErr;
         appendSerialLog(`❌ [${t}] 블록 실행 오류: ${blockErr.message}`);
         console.error('블록 실행 오류:', t, blockErr);
       }
@@ -1845,10 +1989,15 @@ async function sendServo(pin, angle, options) {
       }
       appendSerialLog("⏹ 실행 종료");
     } catch (e) {
-      appendSerialLog(`❌ 실행 오류: ${e.message}`);
+      if (e && e.name === 'ServoProtectionError') {
+        appendSerialLog(`🛑 전류 보호로 프로그램 실행을 중지했습니다: ${e.message}`);
+      } else {
+        appendSerialLog(`❌ 실행 오류: ${e.message}`);
+      }
       console.error('runProgram 상세 오류:', e);
     } finally {
       window._runtimeRunning = false;
+      if (servoProtection.fault) await rollbackAfterCurrentFault();
       if (btnRT) btnRT.textContent = originalText;
             if (btnOther) { btnOther.disabled = false; btnOther.style.opacity = ''; btnOther.style.cursor = ''; }
       try { if (writer) writer.releaseLock(); } catch(_) {}
@@ -1857,6 +2006,7 @@ async function sendServo(pin, angle, options) {
 
       const totalSec = ((performance.now() - startTime) / 1000).toFixed(1);
       appendSerialLog(`📊 총 ${loopCount}회 반복, ${totalSec}초 소요`);
+      if (window._servoProtectionRuntime === servoProtection) window._servoProtectionRuntime = null;
     }
   }
   window.runProgram = runProgram;
@@ -2248,11 +2398,12 @@ function setupIntroPage() {
         // 브라우저가 기억한 각도는 수동조작·재연결 후 실제 각도와 다를 수 있다.
         // 사전 S 명령을 보내지 않고, 실제 마지막 명령 각도를 가진 펌웨어가
         // 현재 위치에서 보관 자세까지 한 번만 순차 이동하도록 맡긴다.
-        const parked = window.waitForBoardResponse('PARKED', 30000);
+        const parked = window.waitForBoardResponse(['PARKED', 'ERR'], 30000);
         await writer.write(enc.encode('K\n'));
         writer.releaseLock();
         writer = null;
-        await parked;
+        const parkedResponse = await parked;
+        if (parkedResponse !== 'PARKED') throw new Error(parkedResponse);
         parkedConfirmed = true;
 
       } catch (e) {

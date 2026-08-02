@@ -1,6 +1,34 @@
 # CubeLink Current Status
 
-Last updated: 2026-07-30
+Last updated: 2026-08-02
+
+## Current-protection prototype (2026-08-02)
+
+- Added candidate firmware v1.5.0 support for two R100 INA3221 boards and four
+  independent servo-current channels (`0x40`: pins 6/9/10, `0x41`: pin 11).
+- Added sustained-current fault detection, affected-servo detach, monitored
+  execution ids, guarded rollback commands, recovery qualification, sensor-loss
+  shutdown, and full detach emergency fallback. No board was flashed.
+- Added Studio v3.7.0 source handling for the `CUR4` capability gate, async
+  current faults, failing Blockly block selection, actual-runtime reverse
+  rollback, and student-facing fault/recovery messages.
+- Completing mission 9 now saves that mission and automatically opens the
+  independent free-coding workspace, restoring its prior saved work if present.
+- Added `docs/CURRENT_PROTECTION_2026-08-02.md` with wiring, protocol, provisional
+  thresholds, and the mandatory physical calibration plan.
+- The first firmware compile for
+  `MiniCore:avr:328:bootloader=no_bootloader` used 15,990 bytes flash (48%) and
+  685 bytes SRAM (33%).
+- Built an unshipped Studio v3.7.0 candidate installer at
+  `studio/electron/dist-v3.7.0-current-protection/Cubelink_Studio.exe` (104,060,737
+  bytes, SHA-256 `728D7463D9AC011FE415364DB537F758F1F3C6FADC630F92F72CF9488B71D871`).
+  Packaged resources contain the v1.5.0/`CUR4` gate. It is not released or
+  approved for classroom installation before physical sensor tests.
+- The compiled firmware HEX remains a local build artifact at
+  `.build-cache/current-protection/CubeLinkBridge.ino.hex` (44,993 bytes,
+  SHA-256 `66BB8BEAD1C50688B6D41DCAC6AF20479431A3AE8DD11C7B362D674801499346`).
+- Physical INA3221 and obstruction testing is pending. The provisional 900mA
+  MG90S and 650mA SG90 thresholds are not approved classroom values.
 
 ## Installer driver-detection fix (2026-07-30)
 

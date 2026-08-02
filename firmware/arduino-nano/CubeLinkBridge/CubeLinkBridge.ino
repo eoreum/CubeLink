@@ -1,9 +1,18 @@
 #include <Servo.h>
 #include <EEPROM.h>
+#include <Wire.h>
 
 /*
  * ============================================================
- *  CUBELINK Bridge Firmware v1.4.2 (dual Studio/standalone candidate)
+ *  CUBELINK Bridge Firmware v1.5.0 (current-protection candidate)
+ *
+ *  v1.5.0 current protection:
+ *   - Two INA3221 boards monitor the four servo supply branches separately.
+ *   - A sustained over-current detaches only the affected servo immediately.
+ *   - Monitored Studio commands carry an execution id so the failing Blockly
+ *     block can be identified and earlier servo steps can be rolled back.
+ *   - Real and standalone motion stay locked when both sensor boards are not
+ *     detected. Thresholds are provisional until physical calibration.
  *
  *  v1.4.2 safety fixes:
  *   - A verified Studio serial session locks out standalone joystick arming
@@ -102,6 +111,48 @@ SafetyState safetyState;
 bool servosActive = false;
 bool studioSessionActive = false;
 
+// ═══════════════ INA3221 current protection ═══════════════
+// Board 1 (0x40): CH1=pin 6, CH2=pin 9, CH3=pin 10
+// Board 2 (0x41): CH1=pin 11. Set its address jumper before connecting it.
+// The listed modules use R100 (0.1 ohm) shunts. INA3221 shunt LSB is 40uV,
+// therefore one ADC count represents 0.4mA with a 0.1-ohm shunt.
+const uint8_t INA3221_ARM_ADDRESS = 0x40;
+const uint8_t INA3221_GRIPPER_ADDRESS = 0x41;
+const uint16_t CURRENT_SAMPLE_PERIOD_MS = 20;
+const uint16_t CURRENT_START_GRACE_MS = 250;
+const uint16_t CURRENT_TRIP_HOLD_MS = 450;
+const uint16_t CURRENT_RECOVERY_STABLE_MS = 600;
+const unsigned long CURRENT_RECOVERY_TIMEOUT_MS = 30000;
+
+struct CurrentChannel {
+  uint8_t pin;
+  uint8_t address;
+  uint8_t channel;
+  uint16_t tripMilliAmps;
+  unsigned long overSince;
+  unsigned long commandStarted;
+  uint16_t commandId;
+  bool attached;
+};
+
+// Provisional thresholds. These MUST be replaced with measured values from
+// several normal and deliberately blocked moves before a classroom release.
+CurrentChannel currentChannels[4] = {
+  { PIN_BASE,    INA3221_ARM_ADDRESS,    1, 900, 0, 0, 0, false },
+  { PIN_LOWER,   INA3221_ARM_ADDRESS,    2, 900, 0, 0, 0, false },
+  { PIN_UPPER,   INA3221_ARM_ADDRESS,    3, 650, 0, 0, 0, false },
+  { PIN_GRIPPER, INA3221_GRIPPER_ADDRESS,1, 650, 0, 0, 0, false }
+};
+bool currentSensorsReady = false;
+bool currentFaultLatched = false;
+bool rollbackFault = false;
+uint8_t currentFaultPin = 0;
+uint16_t currentFaultCommandId = 0;
+unsigned long currentRecoveryStableSince = 0;
+unsigned long currentFaultLatchedAt = 0;
+unsigned long tCurrentSample = 0;
+uint8_t currentSampleIndex = 0;
+
 // ───────────────── 통신 버퍼 ─────────────────
 const uint8_t BUF_SIZE = 24;
 char  rxBuf[BUF_SIZE];
@@ -172,6 +223,7 @@ int ledNotifyCount = 0;
 // ============================================
 void setup() {
   Serial.begin(115200);
+  Wire.begin();
 
   pinMode(PIN_LED, OUTPUT);
   pinMode(PIN_TRIG, OUTPUT);
@@ -186,6 +238,7 @@ void setup() {
   curUpper = PARK_UPPER;
   curGripper = PARK_GRIPPER;
   servosActive = false;
+  currentSensorsReady = initializeCurrentSensors();
 
   digitalWrite(PIN_LED, HIGH);   // 기본(실시간 대기) = LED 켜짐
 
@@ -198,6 +251,16 @@ void setup() {
 // ============================================
 void loop() {
   readSerial();
+  serviceCurrentProtection();
+  if (currentFaultLatched) {
+    if (millis() - currentFaultLatchedAt >= CURRENT_RECOVERY_TIMEOUT_MS) {
+      detachAllServos();
+      servosActive = false;
+      setSafelyParked(false);
+    }
+    serviceLedNotify();
+    return;
+  }
   serviceStandaloneStartup();
 
   if (!autoMode) {
@@ -264,6 +327,42 @@ void handleCommand(const char* line) {
       Serial.println(F("ERR,NOT_INITIALIZED"));
       return;
     }
+    if (currentFaultLatched) {
+      Serial.println(F("ERR,CURRENT_FAULT_LATCHED"));
+      return;
+    }
+    noteMonitoredCommand(pin, 0);
+    moveServo(pin, angle);
+    syncCurAngle(pin, angle);
+  }
+  else if (cmd == 'M' || cmd == 'B') {
+    int commandId, pin, angle;
+    if (!parseThreeInts(line + 1, commandId, pin, angle) ||
+        commandId < 0 || commandId > 30000) {
+      Serial.println(F("ERR,BAD_FORMAT"));
+      return;
+    }
+    if (!isServoPin(pin)) {
+      Serial.println(F("ERR,BAD_PIN"));
+      return;
+    }
+    studioSessionActive = true;
+    if (autoMode) disarmAuto();
+    if (!servosActive) {
+      Serial.println(F("ERR,NOT_INITIALIZED"));
+      return;
+    }
+    const bool rollbackCommand = cmd == 'B';
+    if (currentFaultLatched && !rollbackCommand) {
+      Serial.println(F("ERR,CURRENT_FAULT_LATCHED"));
+      return;
+    }
+    if (rollbackCommand && !currentFaultLatched) {
+      Serial.println(F("ERR,NO_CURRENT_FAULT"));
+      return;
+    }
+    noteMonitoredCommand(pin, (uint16_t)commandId);
+    if (rollbackCommand) reattachForRecovery(pin, angle);
     moveServo(pin, angle);
     syncCurAngle(pin, angle);
   }
@@ -283,9 +382,10 @@ void handleCommand(const char* line) {
   }
   else if (strcmp(line, "P") == 0) {
     studioSessionActive = true;
-    Serial.print(F("PONG,CUBELINK,v1.4.2,"));
+    Serial.print(F("PONG,CUBELINK,v1.5.0,"));
     Serial.print(safetyState.safelyParked ? F("SAFE") : F("RECOVERY_REQUIRED"));
-    Serial.println(F(",PARK_90_30_160_90"));
+    Serial.print(F(",PARK_90_30_160_90,"));
+    Serial.println(currentSensorsReady ? F("CUR4") : F("CUR0"));
   }
   else if (strcmp(line, "I") == 0) {
     studioSessionActive = true;
@@ -304,12 +404,48 @@ void handleCommand(const char* line) {
       Serial.println(F("RECOVERY_ACCEPTED"));
     }
   }
-  else if (cmd == 'P' || cmd == 'I' || cmd == 'K' || cmd == 'R') {
+  else if (strcmp(line, "C") == 0) {
+    finishCurrentRecovery();
+  }
+  else if (strcmp(line, "Q") == 0) {
+    reportServoCurrents();
+  }
+  else if (strcmp(line, "X") == 0) {
+    autoMode = false;
+    detachAllServos();
+    servosActive = false;
+    setSafelyParked(false);
+    Serial.println(F("EMERGENCY_STOPPED"));
+  }
+  else if (cmd == 'P' || cmd == 'I' || cmd == 'K' || cmd == 'R' ||
+           cmd == 'C' || cmd == 'Q' || cmd == 'X') {
     Serial.println(F("ERR,BAD_FORMAT"));
   }
   else {
     Serial.println(F("ERR,UNKNOWN_COMMAND"));
   }
+}
+
+bool parseThreeInts(const char* s, int& a, int& b, int& c) {
+  if (*s != ',') return false;
+  s++;
+  char* end;
+  long values[3];
+  for (uint8_t i = 0; i < 3; i++) {
+    values[i] = strtol(s, &end, 10);
+    if (end == s) return false;
+    if (i < 2) {
+      if (*end != ',') return false;
+      s = end + 1;
+    } else if (*end != '\0') {
+      return false;
+    }
+    if (values[i] < -32768L || values[i] > 32767L) return false;
+  }
+  a = (int)values[0];
+  b = (int)values[1];
+  c = (int)values[2];
+  return true;
 }
 
 bool parseTwoInts(const char* s, int& a, int& b) {
@@ -334,6 +470,220 @@ bool parseTwoInts(const char* s, int& a, int& b) {
 bool isServoPin(int pin) {
   return pin == PIN_BASE || pin == PIN_LOWER ||
          pin == PIN_UPPER || pin == PIN_GRIPPER;
+}
+
+// ============================================
+//  INA3221 current protection
+// ============================================
+bool i2cDevicePresent(uint8_t address) {
+  Wire.beginTransmission(address);
+  return Wire.endTransmission() == 0;
+}
+
+bool writeInaRegister(uint8_t address, uint8_t reg, uint16_t value) {
+  Wire.beginTransmission(address);
+  Wire.write(reg);
+  Wire.write((uint8_t)(value >> 8));
+  Wire.write((uint8_t)(value & 0xFF));
+  return Wire.endTransmission() == 0;
+}
+
+bool readInaRegister(uint8_t address, uint8_t reg, int16_t& value) {
+  Wire.beginTransmission(address);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return false;
+  if (Wire.requestFrom(address, (uint8_t)2) != 2) return false;
+  value = (int16_t)(((uint16_t)Wire.read() << 8) | Wire.read());
+  return true;
+}
+
+bool initializeCurrentSensors() {
+  if (!i2cDevicePresent(INA3221_ARM_ADDRESS) ||
+      !i2cDevicePresent(INA3221_GRIPPER_ADDRESS)) {
+    return false;
+  }
+
+  // 4-sample averaging, 1.1ms shunt conversion, continuous shunt-only.
+  // Board 0x40 enables all channels; board 0x41 needs only channel 1.
+  const uint16_t allThreeChannels = 0x7225;
+  const uint16_t channelOneOnly = 0x4225;
+  return writeInaRegister(INA3221_ARM_ADDRESS, 0x00, allThreeChannels) &&
+         writeInaRegister(INA3221_GRIPPER_ADDRESS, 0x00, channelOneOnly);
+}
+
+int currentChannelIndex(int pin) {
+  for (uint8_t i = 0; i < 4; i++) {
+    if (currentChannels[i].pin == pin) return i;
+  }
+  return -1;
+}
+
+void setCurrentChannelAttached(int pin, bool attached) {
+  int index = currentChannelIndex(pin);
+  if (index < 0) return;
+  currentChannels[index].attached = attached;
+  currentChannels[index].overSince = 0;
+}
+
+void noteMonitoredCommand(int pin, uint16_t commandId) {
+  int index = currentChannelIndex(pin);
+  if (index < 0) return;
+  CurrentChannel& channel = currentChannels[index];
+  if (channel.commandId != commandId) {
+    channel.commandId = commandId;
+    channel.commandStarted = millis();
+    channel.overSince = 0;
+  }
+}
+
+bool readServoMilliAmps(const CurrentChannel& channel, uint16_t& milliAmps) {
+  const uint8_t shuntRegister = 1 + ((channel.channel - 1) * 2);
+  int16_t rawRegister = 0;
+  if (!readInaRegister(channel.address, shuntRegister, rawRegister)) return false;
+  int16_t counts = rawRegister >> 3;
+  long magnitude = counts < 0 ? -(long)counts : (long)counts;
+  milliAmps = (uint16_t)((magnitude * 4L + 5L) / 10L);
+  return true;
+}
+
+void detachServoPin(int pin) {
+  switch (pin) {
+    case PIN_BASE:    servoBase.detach();    break;
+    case PIN_LOWER:   servoLower.detach();   break;
+    case PIN_UPPER:   servoUpper.detach();   break;
+    case PIN_GRIPPER: servoGripper.detach(); break;
+  }
+  setCurrentChannelAttached(pin, false);
+}
+
+void tripCurrentProtection(CurrentChannel& channel, uint16_t milliAmps) {
+  const bool duringRollback = currentFaultLatched;
+  detachServoPin(channel.pin);
+  currentFaultLatched = true;
+  rollbackFault = duringRollback;
+  currentFaultPin = channel.pin;
+  currentFaultCommandId = channel.commandId;
+  currentFaultLatchedAt = millis();
+  currentRecoveryStableSince = 0;
+  Serial.print(F("FAULT,"));
+  Serial.print(duringRollback ? F("ROLLBACK") : F("STALL"));
+  Serial.print(',');
+  Serial.print(currentFaultCommandId);
+  Serial.print(',');
+  Serial.print(currentFaultPin);
+  Serial.print(',');
+  Serial.println(milliAmps);
+  if (!studioSessionActive) {
+    detachAllServos();
+    servosActive = false;
+    setSafelyParked(false);
+  }
+}
+
+void serviceCurrentProtection() {
+  if (!currentSensorsReady || !servosActive) return;
+  unsigned long now = millis();
+  if (now - tCurrentSample < CURRENT_SAMPLE_PERIOD_MS) return;
+  tCurrentSample = now;
+
+  CurrentChannel& channel = currentChannels[currentSampleIndex];
+  currentSampleIndex = (currentSampleIndex + 1) % 4;
+  if (!channel.attached) return;
+
+  uint16_t milliAmps = 0;
+  if (!readServoMilliAmps(channel, milliAmps)) {
+    currentSensorsReady = false;
+    currentFaultLatched = true;
+    rollbackFault = true;
+    currentFaultPin = 0;
+    currentFaultCommandId = 0;
+    currentFaultLatchedAt = millis();
+    autoMode = false;
+    detachAllServos();
+    servosActive = false;
+    setSafelyParked(false);
+    Serial.println(F("FAULT,SENSOR_LOST,0,0,0"));
+    return;
+  }
+
+  if (now - channel.commandStarted < CURRENT_START_GRACE_MS) {
+    channel.overSince = 0;
+    return;
+  }
+
+  if (milliAmps >= channel.tripMilliAmps) {
+    if (channel.overSince == 0) channel.overSince = now;
+    if (now - channel.overSince >= CURRENT_TRIP_HOLD_MS) {
+      tripCurrentProtection(channel, milliAmps);
+    }
+  } else {
+    channel.overSince = 0;
+    if (currentFaultLatched && channel.pin == currentFaultPin && channel.attached) {
+      if (currentRecoveryStableSince == 0) currentRecoveryStableSince = now;
+    }
+  }
+}
+
+void reattachForRecovery(int pin, int angle) {
+  int index = currentChannelIndex(pin);
+  if (index < 0 || currentChannels[index].attached) return;
+  angle = clampAngle(pin, angle);
+  switch (pin) {
+    case PIN_BASE:    servoBase.write(angle);    servoBase.attach(pin);    break;
+    case PIN_LOWER:   servoLower.write(angle);   servoLower.attach(pin);   break;
+    case PIN_UPPER:   servoUpper.write(angle);   servoUpper.attach(pin);   break;
+    case PIN_GRIPPER: servoGripper.write(angle); servoGripper.attach(pin); break;
+  }
+  currentChannels[index].attached = true;
+  currentChannels[index].commandStarted = millis();
+  currentChannels[index].overSince = 0;
+  currentRecoveryStableSince = 0;
+}
+
+void finishCurrentRecovery() {
+  if (!currentFaultLatched) {
+    Serial.println(F("ERR,NO_CURRENT_FAULT"));
+    return;
+  }
+  if (rollbackFault) {
+    Serial.println(F("ERR,ROLLBACK_FAULT"));
+    return;
+  }
+  int index = currentChannelIndex(currentFaultPin);
+  if (index < 0 || !currentChannels[index].attached ||
+      currentRecoveryStableSince == 0 ||
+      millis() - currentRecoveryStableSince < CURRENT_RECOVERY_STABLE_MS) {
+    Serial.println(F("ERR,RECOVERY_NOT_STABLE"));
+    return;
+  }
+  currentFaultLatched = false;
+  rollbackFault = false;
+  currentFaultPin = 0;
+  currentFaultCommandId = 0;
+  currentFaultLatchedAt = 0;
+  currentRecoveryStableSince = 0;
+  for (uint8_t i = 0; i < 4; i++) currentChannels[i].overSince = 0;
+  Serial.println(F("RECOVERY_OK"));
+}
+
+void reportServoCurrents() {
+  if (!currentSensorsReady) {
+    Serial.println(F("ERR,CURRENT_SENSOR_REQUIRED"));
+    return;
+  }
+  Serial.print(F("CURRENT"));
+  for (uint8_t i = 0; i < 4; i++) {
+    uint16_t milliAmps = 0;
+    if (!readServoMilliAmps(currentChannels[i], milliAmps)) {
+      Serial.println(F(",SENSOR_LOST"));
+      return;
+    }
+    Serial.print(',');
+    Serial.print(currentChannels[i].pin);
+    Serial.print(',');
+    Serial.print(milliAmps);
+  }
+  Serial.println();
 }
 
 // ============================================
@@ -555,6 +905,11 @@ void serviceStandaloneStartup() {
 
 bool activateStandaloneFromPark() {
   if (!safetyState.safelyParked || servosActive) return servosActive;
+  if (!currentSensorsReady) {
+    Serial.println(F("ERR,CURRENT_SENSOR_REQUIRED"));
+    ledNotify(5);
+    return false;
+  }
 
   // The arming gesture is accepted only after a confirmed physical park.
   // Mark the session unsafe before energizing the first servo.
@@ -563,6 +918,7 @@ bool activateStandaloneFromPark() {
   curLower = PARK_LOWER;
   curUpper = PARK_UPPER;
   curGripper = PARK_GRIPPER;
+  servosActive = true;
 
   // Attach one axis at a time. No automatic move to 90 degrees is performed.
   attachAtAngle(servoBase, PIN_BASE, curBase);
@@ -573,7 +929,6 @@ bool activateStandaloneFromPark() {
   lastAngle[PIN_LOWER] = curLower;
   attachAtAngle(servoUpper, PIN_UPPER, curUpper);
   lastAngle[PIN_UPPER] = curUpper;
-  servosActive = true;
   return true;
 }
 
@@ -811,10 +1166,16 @@ void setSafelyParked(bool parked) {
 void attachAtAngle(Servo& servo, uint8_t pin, int angle) {
   servo.write(angle);
   servo.attach(pin);
+  setCurrentChannelAttached(pin, true);
+  int index = currentChannelIndex(pin);
+  if (index >= 0) {
+    currentChannels[index].commandId = 0;
+    currentChannels[index].commandStarted = millis();
+  }
   delay(150);
 }
 
-void smoothServoTo(
+bool smoothServoTo(
   Servo& servo,
   uint8_t pin,
   int& current,
@@ -824,12 +1185,40 @@ void smoothServoTo(
 ) {
   target = clampAngle(pin, target);
   while (current != target) {
+    serviceCurrentProtection();
+    if (currentFaultLatched) return false;
     current += (current < target) ? 1 : -1;
     servo.write(current);
     lastAngle[pin] = current;
     delay(stepDelayMs);
   }
-  delay(settleDelayMs);
+  unsigned long settleStarted = millis();
+  while (millis() - settleStarted < (unsigned long)settleDelayMs) {
+    serviceCurrentProtection();
+    if (currentFaultLatched) return false;
+    delay(5);
+  }
+  return true;
+}
+
+void detachAllServos() {
+  servoBase.detach();
+  servoLower.detach();
+  servoUpper.detach();
+  servoGripper.detach();
+  for (uint8_t i = 0; i < 4; i++) {
+    currentChannels[i].attached = false;
+    currentChannels[i].overSince = 0;
+  }
+}
+
+void abortProtectedSequence(const __FlashStringHelper* phase) {
+  detachAllServos();
+  servosActive = false;
+  setSafelyParked(false);
+  Serial.print(F("ERR,"));
+  Serial.print(phase);
+  Serial.println(F("_CURRENT_FAULT"));
 }
 
 void initializeFromPark() {
@@ -841,6 +1230,10 @@ void initializeFromPark() {
     Serial.println(F("ERR,RECOVERY_REQUIRED"));
     return;
   }
+  if (!currentSensorsReady) {
+    Serial.println(F("ERR,CURRENT_SENSOR_REQUIRED"));
+    return;
+  }
 
   // Mark the session unsafe before any servo can move.
   setSafelyParked(false);
@@ -848,22 +1241,34 @@ void initializeFromPark() {
   curLower = PARK_LOWER;
   curUpper = PARK_UPPER;
   curGripper = PARK_GRIPPER;
+  servosActive = true;
   // Attach and move one axis before energizing the next one. Previously all
   // four axes were attached before the first controlled move.
   // Initialization order is mechanically significant: move pin 10 to neutral
   // first, wait 500 ms after it arrives, and only then move pin 9.
   attachAtAngle(servoUpper, PIN_UPPER, curUpper);
-  smoothServoTo(servoUpper, PIN_UPPER, curUpper, 90, 30, 500);
+  if (!smoothServoTo(servoUpper, PIN_UPPER, curUpper, 90, 30, 500)) {
+    abortProtectedSequence(F("INIT"));
+    return;
+  }
 
   attachAtAngle(servoLower, PIN_LOWER, curLower);
-  smoothServoTo(servoLower, PIN_LOWER, curLower, 90, 30, 120);
+  if (!smoothServoTo(servoLower, PIN_LOWER, curLower, 90, 30, 120)) {
+    abortProtectedSequence(F("INIT"));
+    return;
+  }
 
   attachAtAngle(servoBase, PIN_BASE, curBase);
-  smoothServoTo(servoBase, PIN_BASE, curBase, 90, 20, 120);
+  if (!smoothServoTo(servoBase, PIN_BASE, curBase, 90, 20, 120)) {
+    abortProtectedSequence(F("INIT"));
+    return;
+  }
 
   attachAtAngle(servoGripper, PIN_GRIPPER, curGripper);
-  smoothServoTo(servoGripper, PIN_GRIPPER, curGripper, 90, 20, 120);
-  servosActive = true;
+  if (!smoothServoTo(servoGripper, PIN_GRIPPER, curGripper, 90, 20, 120)) {
+    abortProtectedSequence(F("INIT"));
+    return;
+  }
   Serial.println(F("INIT_OK"));
 }
 
@@ -875,22 +1280,23 @@ void parkAndShutdown() {
   if (autoMode) disarmAuto();
 
   // Parking order is mechanically significant: 6 -> 11 -> 9 -> 10.
-  smoothServoTo(servoBase, PIN_BASE, curBase, PARK_BASE, 20, 120);
-  smoothServoTo(servoGripper, PIN_GRIPPER, curGripper, PARK_GRIPPER, 20, 120);
-  smoothServoTo(servoLower, PIN_LOWER, curLower, PARK_LOWER, 30, 120);
-  smoothServoTo(servoUpper, PIN_UPPER, curUpper, PARK_UPPER, 30, 120);
+  if (!smoothServoTo(servoBase, PIN_BASE, curBase, PARK_BASE, 20, 120) ||
+      !smoothServoTo(servoGripper, PIN_GRIPPER, curGripper, PARK_GRIPPER, 20, 120) ||
+      !smoothServoTo(servoLower, PIN_LOWER, curLower, PARK_LOWER, 30, 120) ||
+      !smoothServoTo(servoUpper, PIN_UPPER, curUpper, PARK_UPPER, 30, 120)) {
+    abortProtectedSequence(F("PARK"));
+    return;
+  }
   setSafelyParked(true);
-  servoBase.detach();
-  servoLower.detach();
-  servoUpper.detach();
-  servoGripper.detach();
+  detachAllServos();
   servosActive = false;
   armEnabled = false;
   Serial.println(F("PARKED"));
 }
 
 void sendReady() {
-  Serial.print(F("READY,CUBELINK,v1.4.2,"));
+  Serial.print(F("READY,CUBELINK,v1.5.0,"));
   Serial.print(safetyState.safelyParked ? F("SAFE") : F("RECOVERY_REQUIRED"));
-  Serial.println(F(",PARK_90_30_160_90"));
+  Serial.print(F(",PARK_90_30_160_90,"));
+  Serial.println(currentSensorsReady ? F("CUR4") : F("CUR0"));
 }

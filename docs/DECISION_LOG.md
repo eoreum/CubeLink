@@ -1,6 +1,19 @@
 # CubeLink Decision Log
 
-Last updated: 2026-07-23 (Asia/Seoul)
+Last updated: 2026-08-02 (Asia/Seoul)
+
+## 2026-08-02 — Independent current sensing and firmware-first stall response
+
+- Use two R100 INA3221 boards so pins 6, 9, 10, and 11 have independent
+  high-side current measurements while sharing A4/A5 I2C.
+- Require firmware-reported `CUR4` before Studio real execution. Missing or lost
+  sensing must fail closed, not silently fall back to unprotected motion.
+- Detach the affected servo in firmware on a sustained trip, then let Studio
+  reverse the actual successful runtime history. Monitor rollback and detach
+  every servo if rollback also encounters an obstruction.
+- Treat command-history rollback as best effort because hobby servos provide no
+  position feedback. Physical calibration and obstruction testing remain a
+  release gate.
 
 This file records durable product decisions that must survive new Codex tasks
 and different computers. Historical conversation text is supporting context;

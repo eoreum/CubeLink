@@ -24,6 +24,11 @@ state, and moving servo channel for every physical test.
 
 Static regression coverage:
 
+- `node --test test/current-protection.test.cjs` verifies the two-board/four-
+  channel INA3221 requirement, v1.5.0 capability gate, monitored command ids,
+  faulted-servo detach, Blockly fault mapping, reverse rollback, and emergency
+  stop fallback. Physical stall thresholds still require hardware calibration.
+
 - `node --test test/firmware-standalone-legacy-arming.test.cjs` verifies the
   measured v1.3.1 raw corner conditions and two-second hold while preserving
   neutral calibration, parked-state, and Studio-session locks.
