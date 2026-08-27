@@ -1,5 +1,60 @@
 # Continue CubeLink Work Here
 
+Laptop handoff (2026-08-27): read `LAPTOP_CONTINUATION.md` when resuming this
+repository on another computer. The canonical handoff branch is
+`agent/v360-desktop-handoff`. Pull that branch before editing, preserve any
+pre-existing local changes, and update this file plus `PROJECT_STATUS.md` before
+switching computers again.
+
+Eoreum blog-management update (2026-08-27): the public Eoreum blog and the
+historical `robospace`/`tjind13` archives were reviewed. Use
+`docs/EOREUM_BLOG_EDITORIAL_GUIDE.md` for every future post. It records the
+current typography/spacing/photo/voice pattern, legacy rewrite rules, approval
+workflow, and a strict CubeLink public/private boundary. The first draft is at
+`docs/blog-drafts/001_CUBELINK_BLOCKS_TO_MOTION.md`; it is not published and
+must receive user approval first. Never publish internal protocol/security
+details, unverified hardware claims, private paths/IDs, unreleased binaries, or
+test download links. No blog state was changed during the review.
+
+The initial Eoreum publishing package is now ready. Historical candidates and
+their privacy/fact-check requirements are recorded in
+`docs/EOREUM_BLOG_ARCHIVE_AUDIT.md`; the first 12-post sequence is in
+`docs/EOREUM_BLOG_12_POST_PLAN.md`. Drafts 002 and 003 are in `docs/blog-drafts`
+beside draft 001. The recommended opening order is brand history, CubeLink
+blocks-to-motion, then the robot-engineer career class. Select or reshoot the
+recommended photos, confirm legacy photo permissions and current contact
+details, then obtain explicit user approval for the exact post preview before
+changing Naver. Do not copy old posts verbatim and do not migrate the historical
+v3.6.2 download post.
+
+For a new external-lecture post, use `docs/EOREUM_EXTERNAL_LECTURE_INTAKE.md`.
+It accepts rough notes and original phone photos; institution names, student
+faces, names, testimonials, and teaching-material screens remain non-public
+unless their permission is explicitly confirmed.
+
+Tablet project start (2026-08-26): `studio/tablet` is now the independent
+CubeLink Studio Tablet Android project. Do not replace or reshape the existing
+Desktop code in `studio/web` or `studio/electron`. The touch-first responsive
+prototype, Capacitor Android shell, transport/storage interfaces, and
+`docs/CUBELINK_STUDIO_TABLET_DESIGN_V1.0.md` are present. Web build, Android
+sync, native debug APK compilation, and 1280x800/800x1280 browser navigation
+checks passed. The P1 core now includes actual Blockly 10.4.3 editing, large
+touch quick-insert cards, XML/IndexedDB autosave and reload recovery, and
+multi-project creation/switching. Quick insert, 3-block reload restoration,
+project creation, and the 800x1280 coding layout passed browser checks without
+errors. Desktop's complete block catalog and project file interchange still
+need a compatibility pass. Android USB Host/CH340 I/O, firmware verification,
+initialization, heartbeat, and reconnection are P2. The connection and physical
+run UI intentionally remain disabled until those functions are real.
+
+Live Blockly review update (2026-08-26): a global icon `svg` rule was collapsing
+Blockly's workspace and flyout SVGs to 24x24, which made saved blocks appear
+missing. The selector is now limited to app icons; blocks, grid, zoom, trash,
+and full-height category flyouts are visible. The classroom library now shows
+named robot joints, smooth/direct motion, gripper, safe storage pose, timing,
+repeat, and distance blocks. New projects receive a connected four-block
+example. Preserve this visual fix when editing the icon system.
+
 Current-protection update (2026-08-02): firmware v1.5.0 and Studio v3.7.0
 candidate sources now implement a two-INA3221/four-servo protection path,
 faulting Blockly-block identification, and monitored reverse rollback. Read
@@ -20,6 +75,54 @@ installer was built successfully at
 `5C68E850987608BA9F1B2DE454D4B73E12194A9FD28579D99F97F34264D07284`.
 Static tests and packaged-resource comparison passed. It has not been run or
 physically tested.
+
+Tablet mission/simulation update (2026-08-26): the Tablet app now includes
+three student missions with goals, required blocks, and ordered practice steps.
+Mission selection routes into Blockly practice or a Three.js 3D robot-arm
+simulator. It uses byte-identical copies of Desktop Studio's five GLB parts and
+the same assembly coordinates and PIN 6/9/10/11 axes. Three joint sliders,
+gripper open/close, reset, five-step demonstration, touch orbit/zoom, and camera
+reset work. Route re-entry and 1280x800/800x1280 layouts were verified. Next
+connect Blockly execution to simulated poses and add mission success and safety
+range feedback. The model is genuine 3D, but collision and physics simulation
+are not yet implemented.
+
+Tablet mission workspace correction (2026-08-26): missions no longer reuse the
+last active free-coding project. Each mission has its own `missionId` project,
+starter XML, and filtered quick-card set. Mission 1 starts with a start hat
+connected to the PIN 6, 60 degree, 1 second movement block; students add wait
+and gripper blocks. A
+two-tap `미션 처음부터` action restores the starter without accidental data
+loss. Live checks passed for reload persistence and the 800x1280 responsive UI.
+Preserve free-project/mission-context separation.
+The `cubelink_start` hat block is now mandatory in starter templates. Mission 1
+starts as `start → PIN 6 / 60° / 1s`; older saved chains are wrapped under a
+start block without erasing work, and mission start blocks cannot be deleted.
+The current starter/reset check passes at 2→4→2 blocks including the start hat.
+
+Tablet Blockly-to-simulation update (2026-08-26): the coding page now has an
+independent `◇ 3D로 실행` action. It extracts only blocks connected below the
+single start hat and sends a transient command plan to the real-model simulator.
+Supported commands include servo/gripper motion, ms/sec waits, bounded repeats,
+distance gates/condition bodies, and storage pose. All three Tablet missions
+have ordered validators; failure lists missing steps, while success records a
+checkmark and updates the home total. Mission 1 supports both gripper action
+blocks and Desktop-compatible PIN 11 angle blocks. Live incomplete and complete
+flows, preview/plan separation, 1/3 progress, and portrait controls passed.
+The home no longer uses the sample name `민준`; it shows a neutral student
+greeting and `학` badge. The coding page keeps the current mission goal and
+ordered success steps visible above Blockly. Quick-insert cards append to the
+end of the single start chain, preventing the disconnected pile of blocks that
+was seen during early mission practice. Mission-2 checks passed at 2→4 blocks
+with one top-level chain and a clean three-command 3D plan.
+Tablet simulation safety update (2026-08-26): a shared safety profile now keeps
+manual controls and Blockly preflight aligned with firmware v1.4.2 development
+limits (P6 10..170, P9 30..170, P10 10..160). Out-of-range commands stay on
+the coding page and identify the joint, pin, requested angle, and allowed
+range. The storage-pose animation now uses P6=90, P9=30, P10=160, P11=90.
+Live browser review passed for exact slider limits and PIN 6 / 0-degree
+rejection; the mission program was restored afterward. Geometry collision and
+physics checks are still not implemented and must not be claimed.
 
 Desktop continuation update (2026-07-30): the v3.6.0 Studio handoff source has
 been integrated on `agent/v360-desktop-handoff` without changing `firmware/`.

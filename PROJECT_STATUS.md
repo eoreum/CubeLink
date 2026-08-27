@@ -1,6 +1,166 @@
 # CubeLink Current Status
 
-Last updated: 2026-08-02
+Last updated: 2026-08-26
+
+## Laptop continuation handoff (2026-08-27)
+
+- Added `LAPTOP_CONTINUATION.md` with the repository, handoff branch, per-topic
+  paths, safety boundaries, and the exact Codex resume prompt for a notebook.
+- The intended cross-device source of truth is the Git branch plus
+  `PROJECT_CONTEXT.md`, this file, and `CONTINUE_HERE.md`; chat history alone is
+  not relied on for code or verification state.
+
+## Eoreum official-blog governance (2026-08-27)
+
+- Reviewed the public Eoreum blog, the current `아두이노 강좌 ⑤ 거리 경보 장치
+  만들기` post, and the historical `robospace` and `tjind13` blogs.
+- Added `docs/EOREUM_BLOG_EDITORIAL_GUIDE.md` to preserve the Eoreum visual
+  rhythm, calm instructional voice, image treatment, legacy-source attribution,
+  fact checking, privacy checks, approval workflow, and CubeLink public/private
+  boundary.
+- Added the first public-safe draft, `CubeLink 개발일지 ① 블록이 로봇의 움직임이
+  되기까지`. It describes only educational goals and user-facing concepts and
+  is explicitly marked as requiring user approval before publication.
+- Added `docs/EOREUM_BLOG_ARCHIVE_AUDIT.md`, which sorts historical material
+  into rewrite, verify, preserve-only, and exclude groups. Old contact details,
+  unverified downloads, student-identifying images, and unsafe projects are not
+  migration candidates.
+- Added `docs/EOREUM_BLOG_12_POST_PLAN.md` and two more review-ready drafts:
+  `RoboSpace에서 이오름으로, 기술과 배움이 이어진 시간` and `보고, 조종하고,
+  코딩하며 만나는 로봇공학`. The initial package now contains three drafts.
+- Added `docs/EOREUM_EXTERNAL_LECTURE_INTAKE.md` so recent school and
+  institution classes can be turned into posts from a small set of facts,
+  original photos, lesson materials, and explicit privacy/publicity choices.
+- The public-copy scan found no protocol commands, authentication internals,
+  private paths, account details, phone numbers, or firmware/board parameters in
+  the three drafts. The archive audit mentions the already-public v3.6.2 download
+  only to mark it as prohibited from migration pending a separate release audit.
+- No Naver post was created, edited, hidden, or published. Existing blog content
+  and the historical blogs remain unchanged.
+
+## CubeLink Studio Tablet project start (2026-08-26)
+
+### Blockly and local-project MVP
+
+- Added a shared Tablet robot-arm safety profile matching firmware v1.4.2's
+  current development limits: PIN 6=10..170, PIN 9=30..170, and
+  PIN 10=10..160 degrees. Manual simulation sliders now use those ranges.
+- Blockly plans with an out-of-range servo command are rejected before the 3D
+  route and identify the joint, pin, requested angle, and allowed range. Live
+  review confirmed that a PIN 6 / 0-degree command stayed on the coding page
+  with the correct 10..170-degree warning; the saved mission was then restored.
+- Corrected the simulated storage command to the shared physical pose
+  `P6=90, P9=30, P10=160, P11=90` instead of the former all-90 visual pose.
+
+- Replaced the sample student name with a neutral `학` student-mode badge and
+  generic greeting, so the home screen no longer presents a fictional learner
+  as real profile data.
+- Quick-insert cards now append blocks to the tail of the one `cubelink_start`
+  execution chain. Live mission-2 verification kept one top-level chain while
+  growing from two to four blocks and produced a three-command 3D plan without
+  a disconnected-block warning.
+- Added a persistent mission guide above the coding workspace with the active
+  mission's title, goal, ordered success steps, and the `3D로 실행` cue. Both
+  1280x800 and 800x1280 layouts passed browser review.
+
+- Fixed mission/free-project workspace contamination observed in live review.
+  Each mission now owns a separate `missionId` project and first opens with a
+  small mission-specific starter template instead of whichever project was
+  previously active. Mission 1 starts with one PIN 6 / 60 degree / 1 second
+  movement block and exposes only movement, wait, and gripper quick cards.
+- Added a guarded `미션 처음부터` action: the first tap arms the reset for 3.5
+  seconds and the second restores and saves the mission template. Browser
+  verification passed for the starter workspace, guarded reset, reload
+  persistence, and the 800x1280 layout. Opening/creating a free
+  project now clears mission context, while mission projects restore it.
+- Added the `cubelink_start` hat block. All new starter workspaces begin at
+  `▶ 시작하기`; mission 1 now opens as `start → PIN 6 / 60° / 1s`. Existing
+  saved XML without a start block is migrated by wrapping its first execution
+  chain rather than deleting student work. Mission start blocks are protected
+  from deletion. Live verification passed for the 2-block starter, growth to 4
+  blocks during practice, and guarded reset back to the 2-block starter chain.
+- Added end-to-end Blockly-to-3D mission execution. `◇ 3D로 실행` extracts only
+  the chain under the single start block, expands supported repeats, warns about
+  disconnected/unsupported blocks, stores a transient plan, and routes to the
+  real-model simulator. Servo, gripper, millisecond/second wait, distance gate,
+  condition body, and storage-pose commands animate sequentially.
+- Added Tablet mission validators for all three missions. Mission 1 checks the
+  ordered 60-degree base move, one-second wait, gripper open, then close and
+  accepts both Tablet gripper actions and Desktop-compatible PIN 11 angles.
+  Failure UI lists missing steps; success UI records completion, adds a check to
+  the mission card, and updates the home progress to 1/3. Live browser checks
+  passed for both failure and success flows, the execution list, 3D final pose,
+  preview/plan separation, completion persistence, and the 800x1280 controls.
+
+- Added a student practice flow with three missions (`로봇팔과 인사하기`,
+  `물건 옮기기`, `거리 센서 경비원`). Each mission presents its goal,
+  required blocks, ordered practice steps, level, and estimated time, then
+  enters either simulation or Blockly practice while retaining the selection.
+- Replaced the initial 2D trainer with a real 3D robot-arm simulator using exact
+  copies of Desktop Studio's five GLB parts (`base`, `lower`, `upper`, `grip01`,
+  `grip02`) and the same assembly coordinates and PIN 6/9/10/11 rotation rules.
+  Source and Tablet model SHA-256 hashes match. Three.js is lazy-loaded only on
+  the simulation route.
+- The 3D simulator provides base/lower/upper joint sliders, gripper open/close,
+  reset, a five-pose object-moving demo, touch orbit/zoom, and camera reset.
+  Browser checks passed for mission switching, mission-to-simulation routing,
+  direct joint/gripper control, automatic pose progression, and both 1280x800
+  and 800x1280 responsive layouts.
+- The simulator teaches motion sequencing with the real visual model, animates
+  Blockly execution plans, and enforces the confirmed software angle limits.
+  Geometry collision detection and physics remain future work.
+
+- Fixed the Blockly visibility defect found during live user review: the app's
+  global 24 px SVG icon rule had also collapsed Blockly workspace/flyout SVGs.
+  The rule is now limited to app icons. The workspace renders at 773x590 in the
+  1280x800 review and the movement flyout renders at full height with five
+  visible blocks.
+- Expanded the classroom block set with named joints (`회전판`, `아래팔`,
+  `위팔`, `집게`), direct and smooth joint movement, gripper open/close, safe
+  storage pose, millisecond/second waits, repeat, ultrasonic distance wait, and
+  a distance condition. Six large quick-insert cards are visible.
+- New projects now start with a connected four-block robot-arm example rather
+  than an empty or two-block test workspace.
+- Added Blockly 10.4.3 to match the existing Desktop runtime while keeping all
+  Tablet implementation inside `studio/tablet`.
+- Implemented a real Zelos Blockly workspace with large quick-insert touch
+  cards, drag/connect/zoom/trash behavior, and a starter program.
+- Added core Desktop-compatible block type names for smooth servo movement,
+  servo angle, delay, repeat, and ultrasonic distance. The full Desktop block
+  catalog is not yet shared or exposed.
+- Added versioned XML project records backed by IndexedDB, 650 ms debounced
+  autosave, manual save status, reload recovery, multi-project creation/listing,
+  and current-project switching.
+- Browser verification passed for quick insertion (2 to 3 blocks), IndexedDB
+  reload persistence (3 blocks restored), new-project creation (1 to 2
+  projects), and the 800x1280 touch layout. No browser errors or warnings were
+  reported. The production build now lazy-loads the 673 kB Blockly chunk so the
+  initial app bundle remains about 16 kB before compression.
+- Physical execution remains disabled. Next is full block/project interchange
+  compatibility, followed by Android USB Host/CH340 transport and safety-state
+  integration.
+
+- Started `studio/tablet` as a separate Android tablet package without changing
+  the existing Desktop source under `studio/web` or `studio/electron`, and
+  without changing `firmware/`.
+- Added `CubeLink Studio Tablet 설계서 V1.0`, covering product scope, touch-first
+  UX, student/teacher modes, responsive layouts, Android USB-C OTG/CH340
+  strategy, discovery/reconnection, Blockly touch UX, project storage, shared
+  protocol/firmware boundaries, V1 scope, and implementation priorities.
+- Selected Vite + TypeScript inside a Capacitor Android shell so platform-neutral
+  Blockly, protocol, and storage code can be shared while Android USB Host access
+  remains behind a native transport boundary.
+- Implemented a responsive home screen, coding placeholder, honest robot-
+  connection state, all seven route shells, desktop-width side navigation,
+  tablet/narrow-width bottom navigation, and a more-menu sheet.
+- Verified production web build and Capacitor Android sync. A native Gradle
+  `assembleDebug` build completed successfully using Android Studio's bundled
+  Java runtime. Browser checks passed at 1280x800 and 800x1280, including
+  home/coding/connection transitions and responsive navigation; no browser
+  warnings or errors were reported.
+- Actual Blockly editing, local persistence, Android USB permissions/CH340 I/O,
+  firmware verification, safety initialization, and reconnection are not yet
+  implemented. P1 is Blockly editing/storage; P2 is physical Android USB.
 
 ## Current-protection prototype (2026-08-02)
 
