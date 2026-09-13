@@ -10,12 +10,16 @@ const firmware = fs.readFileSync(path.join(
 const studio = fs.readFileSync(path.join(root, 'studio', 'web', 'js', 'app.js'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'studio', 'web', 'index.html'), 'utf8');
 
-test('firmware requires two INA3221 boards and exposes four-channel capability', () => {
+test('firmware preserves the repository current-protection policy', () => {
   assert.match(firmware, /INA3221_ARM_ADDRESS\s*=\s*0x40/);
   assert.match(firmware, /INA3221_GRIPPER_ADDRESS\s*=\s*0x41/);
   assert.match(firmware, /PIN_BASE,[\s\S]*PIN_LOWER,[\s\S]*PIN_UPPER,[\s\S]*PIN_GRIPPER,/);
   assert.match(firmware, /currentSensorsReady \? F\("CUR4"\) : F\("CUR0"\)/);
-  assert.match(firmware, /ERR,CURRENT_SENSOR_REQUIRED/);
+  if (/ENABLE_CURRENT_PROTECTION\s*=\s*false/.test(firmware)) {
+    assert.match(firmware, /ENABLE_CURRENT_PROTECTION && initializeCurrentSensors\(\)/);
+  } else {
+    assert.match(firmware, /ERR,CURRENT_SENSOR_REQUIRED/);
+  }
 });
 
 test('firmware detaches a stalled servo and has guarded rollback commands', () => {
@@ -29,13 +33,15 @@ test('firmware detaches a stalled servo and has guarded rollback commands', () =
 });
 
 test('Studio maps faults to blocks and rolls successful actions back in reverse order', () => {
-  assert.match(index, /supportedSafetyVersions = \['v1\.5\.0'\]/);
-  assert.match(index, /currentProtection !== 'CUR4'/);
+  assert.match(index, /compatibility\.evaluateHandshake/);
+  assert.match(studio, /hasCurrentProtection = useSerial/);
+  assert.match(studio, /window\._cubeSafety\.currentProtection === 'CUR4'/);
   assert.match(index, /head === 'FAULT'/);
   assert.match(studio, /workspace\.highlightBlock\(block\.id\)/);
   assert.match(studio, /stepNumber: servoProtection\.actions\.size \+ 1/);
   assert.match(studio, /번째 블록\(PIN \$\{fault\.pin\}\)/);
   assert.match(studio, /servoProtection\.history[\s\S]*\.reverse\(\)/);
+  assert.match(studio, /hasCurrentProtection && options\.rollback/);
   assert.match(studio, /`B,\$\{commandId\},\$\{pin\},\$\{realAngle\}`/);
   assert.match(studio, /writer\.write\(enc\.encode\('C\\n'\)\)/);
   assert.match(studio, /writer\.write\(enc\.encode\('X\\n'\)\)/);

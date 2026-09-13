@@ -14,7 +14,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="CUBELINK">
 
-  <title>CubeLink Studio v3.7.0 · The Pinnacle of Robot Education</title>
+  <title>CubeLink Studio v3.6.4 · The Pinnacle of Robot Education</title>
 
   <!-- SEO -->
   <meta name="description" content="CUBELINK Studio - 학생을 위한 무료 로봇팔 블록 코딩 학습 도구. 9단계 미션, 3D 시뮬레이터, 아두이노 실시간 제어를 한 곳에서.">
@@ -75,7 +75,7 @@
            onerror="this.style.display='none'; this.parentNode.textContent='Eoreum';">
     </div>
 
-    <div class="brand-title">CubeLink Studio<span class="brand-version">v3.7.0</span></div>
+    <div class="brand-title">CubeLink Studio<span class="brand-version">v3.6.4</span></div>
   </div>
 
   <div class="header-actions">
@@ -112,6 +112,14 @@
 <div class="layout">
   <aside class="panel-left">
     <div class="panel-header">🎯 미션 선택</div>
+    <section id="digitalTwinTelemetry" aria-label="디지털 트윈 실시간 상태">
+      <div class="digital-twin-title">
+        <div><strong>◇ DIGITAL TWIN</strong><span id="manualModeBadge">프로그램 실행</span></div>
+        <button class="btn" id="btnManualTwin" title="실제 조이스틱 수동모드와 디지털 트윈을 함께 켜거나 끕니다 (Ctrl+Alt+J)">🕹 수동조작</button>
+      </div>
+      <div class="digital-twin-shortcut">Ctrl+Alt+J · 하드웨어 수동모드 + 화면 동시 전환</div>
+      <div id="digitalTwinTelemetryBody"></div>
+    </section>
     <div id="missionList"></div>
 
     <div class="serial-monitor-bar" id="serialMonitorBar">
@@ -169,7 +177,7 @@
           <div class="sim-label">PIN 13 LED</div>
         </div>
 
-        <div class="sim-row" style="flex-direction:column;align-items:stretch;gap:4px;">
+        <div class="sim-row" id="servoTelemetryRow" style="flex-direction:column;align-items:stretch;gap:4px;">
           <div class="sim-label" style="font-weight:700;color:var(--gold);">🦾 4축 서보 각도</div>
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
             <div class="servo-mini" data-pin="6">
@@ -195,7 +203,7 @@
           </div>
         </div>
 
-        <div class="sim-row" style="justify-content:space-around;gap:8px;">
+        <div class="sim-row" id="joystickTelemetryRow" style="justify-content:space-around;gap:8px;">
           <div style="text-align:center;">
             <div class="joy-pad" id="joyPad1" title="조이스틱 1 (왼손)">
               <div class="joy-dot" id="joyDot1"></div>
@@ -310,7 +318,9 @@
 <script src="js/blocks.js"></script>
 <script src="js/mobile-ui.js"></script>
 <script src="js/allMissionsComplete.js"></script>
+<script src="js/firmwareCompatibility.js"></script>
 <script src="js/app.js"></script>
+<script src="js/digitalTwin.js"></script>
 
 
 <!-- ════════════════════════════════════════════════════════════════
@@ -370,7 +380,7 @@ window.updateUltrasonicUI = function(cm) {
   if (usValue) usValue.textContent = d;
 };
 
-window._cubeSafety = { state: 'UNKNOWN', initialized: false, flowRunning: false, currentProtection: 'CUR0' };
+window._cubeSafety = { state: 'UNKNOWN', initialized: false, flowRunning: false, firmwareVersion: '', currentProtection: 'CUR0', manualProtocol: '' };
 window._boardResponseWaiters = [];
 
 window._servoProtectionRuntime = null;
@@ -451,7 +461,7 @@ window.runCubeSafetyStartup = async function(state) {
       const confirmed = await window.customConfirm(
         '이전 사용이 안전 종료로 완료되지 않았습니다.\n\n' +
         'USB 연결은 절대로 빼지 마세요. 모터가 아직 해제된 상태이므로 팔을 손으로 지지하면서 보관 자세로 놓은 뒤 확인을 누르세요.\n' +
-        '(6번 90°, 9번 10°, 10번 10°, 11번 90°)'
+        '(6번 90°, 9번 30°, 10번 160°, 11번 90°)'
       );
       if (!confirmed) {
         if (window.showToast) window.showToast('⚠ 복구 확인 전에는 실물 실행이 잠겨 있습니다.', 'warn', 4000);
@@ -521,24 +531,31 @@ window.parseBoardLine = function(line) {
     }
     const version = p[2] || '';
     const safetyState = p[3] || 'UNKNOWN';
+    const poseProfile = p[4] || '';
     const currentProtection = p[5] || 'CUR0';
+    const manualProtocol = p[6] || '';
+    window._cubeSafety.firmwareVersion = version;
     window._cubeSafety.currentProtection = currentProtection;
-    const supportedSafetyVersions = ['v1.5.0'];
-    if (!supportedSafetyVersions.includes(version)) {
-      window._cubeSafety.state = 'LEGACY';
+    window._cubeSafety.manualProtocol = manualProtocol;
+    const compatibility = window.CubeLinkFirmwareCompatibility;
+    const result = compatibility && compatibility.evaluateHandshake({
+      versionText: version,
+      safetyState,
+      poseProfile
+    });
+    if (!result || !result.ok) {
+      const protocolFailure = result && result.stage === 'protocol';
+      window._cubeSafety.state = protocolFailure ? 'INCOMPATIBLE_PROTOCOL' : 'LEGACY';
       window._cubeSafety.initialized = false;
       setConnectionState('failed');
-      window.updatePortStatusBadge('failed', `지원하지 않는 펌웨어 ${version || 'UNKNOWN'}`);
-      if (window.showToast) window.showToast('⚠ 전류 보호 펌웨어 v1.5.0이 필요합니다.', 'warn', 5000);
-      return;
-    }
-    if (currentProtection !== 'CUR4') {
-      window._cubeSafety.state = 'CURRENT_SENSOR_REQUIRED';
-      window._cubeSafety.initialized = false;
-      setConnectionState('failed');
-      window.updatePortStatusBadge('failed', '전류센서 4채널 확인 필요');
+      window.updatePortStatusBadge('failed', protocolFailure
+        ? '호환되지 않는 CubeLink 프로토콜'
+        : `지원하지 않는 펌웨어 ${version || 'UNKNOWN'}`);
       if (window.showToast) {
-        window.showToast('🛑 INA3221 두 개와 서보 4채널 배선을 확인하세요.', 'error', 6000);
+        window.showToast(protocolFailure
+          ? '🛑 펌웨어 명령 체계 또는 안전 자세가 이 Studio와 호환되지 않습니다.'
+          : '⚠ 안정판 CubeLink 펌웨어 v1.3.5 이상이 필요합니다.',
+        protocolFailure ? 'error' : 'warn', 5000);
       }
       return;
     }
@@ -562,6 +579,14 @@ window.parseBoardLine = function(line) {
     return;
   }
   if (head === 'INIT_OK' || head === 'RECOVERY_ACCEPTED' || head === 'PARKED' || head === 'RECOVERY_OK') return;
+  if (head === 'MANUAL_ACTIVE' || head === 'STANDALONE_ACTIVE') {
+    if (window.onBoardManualModeChanged) window.onBoardManualModeChanged(true, head);
+    return;
+  }
+  if (head === 'MANUAL_INACTIVE') {
+    if (window.onBoardManualModeChanged) window.onBoardManualModeChanged(false, head);
+    return;
+  }
   if (head === 'CURRENT') {
     const readings = [];
     for (let i = 1; i + 1 < p.length; i += 2) readings.push(`PIN ${p[i]}: ${p[i + 1]}mA`);
@@ -578,6 +603,10 @@ window.parseBoardLine = function(line) {
   if (head === 'J2') { updateJoystickUI(2, parseInt(p[1],10), parseInt(p[2],10), parseInt(p[3],10)); return; }
   if (head === 'A')  {
     const pin = parseInt(p[1],10), ang = parseInt(p[2],10);
+    if (Number.isFinite(pin) && Number.isFinite(ang)) {
+      window.servoAngles = window.servoAngles || {};
+      window.servoAngles[pin] = ang;
+    }
     if (window.Sim && typeof Sim.setServo === 'function') Sim.setServo(pin, ang);
     return;
   }
@@ -662,7 +691,9 @@ window.fullCleanup = async function(opts) {
       window._cubeSafety.initialized = false;
       window._cubeSafety.flowRunning = false;
       window._cubeSafety.state = 'UNKNOWN';
+      window._cubeSafety.firmwareVersion = '';
       window._cubeSafety.currentProtection = 'CUR0';
+      window._cubeSafety.manualProtocol = '';
     }
     (window._boardResponseWaiters || []).forEach(waiter => {
       clearTimeout(waiter.timer);
@@ -1572,6 +1603,8 @@ window.addEventListener('load', () => {
   const SECRET_TWIN = ['디지털트윈', 'twin', '트윈', 'digitaltwin', 'digital twin'];
   const CMD_REAL    = ['실물만', 'real', '실물', 'robot'];
   const CMD_SIM     = ['그래픽만', 'sim', '그래픽', 'graphic', 'simulation'];
+  const CMD_MANUAL  = ['조이스틱수동', 'joystickmanual', 'manual'];
+  const CMD_MANUAL_OFF = ['조이스틱종료', 'joystickoff', 'manualoff'];
   const CMD_RESET   = ['초기화', 'reset', 'lock', '잠금'];
   const CMD_HELP    = ['help', '도움말', '?'];
   const CMD_VERSION = ['version', '버전', 'ver'];
@@ -1613,6 +1646,16 @@ window.addEventListener('load', () => {
       appendToMonitor('✓ 그래픽 전용 모드', '#2ecc71');
       return;
     }
+    if (matches(cmd, CMD_MANUAL)) {
+      if (window.startJoystickManual) window.startJoystickManual();
+      appendToMonitor('✓ 조이스틱 수동조작 시작 요청', '#2ecc71');
+      return;
+    }
+    if (matches(cmd, CMD_MANUAL_OFF)) {
+      if (window.stopJoystickManual) window.stopJoystickManual();
+      appendToMonitor('✓ 조이스틱 수동조작 종료 요청', '#3498db');
+      return;
+    }
     if (matches(cmd, CMD_RESET)) {
       window.twinUnlocked = false;
       window.setActionMode('real', { silent:true });
@@ -1624,12 +1667,15 @@ window.addEventListener('load', () => {
       appendToMonitor('─── 사용 가능 명령 ───', '#D4AF37');
       appendToMonitor('  real / 실물만     — 실물 로봇 전용', '#888');
       appendToMonitor('  sim  / 그래픽만   — 3D 그래픽 전용', '#888');
+      appendToMonitor('  joystickmanual    — 조이스틱 수동조작 시작', '#888');
+      appendToMonitor('  joystickoff       — 조이스틱 수동조작 종료', '#888');
+      appendToMonitor('  Ctrl+Alt+J         — 수동조작과 트윈 화면 전환', '#888');
       appendToMonitor('  reset / 초기화    — 기본 모드로 복귀', '#888');
       appendToMonitor('  version / 버전    — 현재 버전 표시', '#888');
       return;
     }
     if (matches(cmd, CMD_VERSION)) {
-      appendToMonitor('CubeLink Studio v3.7.0', '#3498db');
+      appendToMonitor('CubeLink Studio v3.6.4', '#3498db');
       return;
     }
 

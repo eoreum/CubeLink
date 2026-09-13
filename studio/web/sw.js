@@ -5,7 +5,7 @@
  * 업데이트 시 CACHE_VERSION 값을 올려야 사용자에게 새 버전이 적용됩니다.
  */
 
-const CACHE_VERSION = 'cubelink-v3.7.0-current-protection1';
+const CACHE_VERSION = 'cubelink-v3.6.4-digital-twin-semver1';
 
 // 앱 설치 시 미리 받아둘 핵심 파일 목록
 const PRECACHE_URLS = [
@@ -15,6 +15,7 @@ const PRECACHE_URLS = [
   './css/style.css',
   './css/mobile.css',
   './js/app.js',
+  './js/firmwareCompatibility.js',
   './js/blocks.js',
   './js/simulator3D.js',
   './js/mobile-ui.js',

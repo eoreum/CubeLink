@@ -1464,6 +1464,11 @@ checkGraduation() {
       if (result) throw new ServoProtectionError(result);
     }
 
+    // v1.4.2/Studio 3.6 hardware uses the original S protocol. CUR4 firmware
+    // alone receives monitored M/B commands and the rollback timing window.
+    const hasCurrentProtection = useSerial && !!(window._cubeSafety &&
+      window._cubeSafety.currentProtection === 'CUR4');
+
     const writer = useSerial
       ? await (window.acquireSerialWriter
           ? window.acquireSerialWriter(port)
@@ -1488,6 +1493,9 @@ checkGraduation() {
       if (writer) writer.releaseLock();
       if (simStatusEl) { simStatusEl.textContent = '● 대기 중'; simStatusEl.classList.remove('running'); }
       return;
+    }
+    if (!simOnly && window.enterDigitalTwinLayout) {
+      window.enterDigitalTwinLayout({ manual: false });
     }
     // v2.9.1: 실행 중 편집 잠금 (시뮬=금색, 실시간=빨강) — setup 확인 후 켬
     showRunLock(runtimeMode !== 'sim');
@@ -1521,9 +1529,11 @@ async function sendServo(pin, angle, options) {
     else realAngle = Math.max(0, Math.min(180, realAngle));                       // 일반 축 보호
 
     const commandId = Number(options.commandId) || 0;
-    const command = options.rollback
+    const command = hasCurrentProtection && options.rollback
       ? `B,${commandId},${pin},${realAngle}`
-      : (commandId ? `M,${commandId},${pin},${realAngle}` : `S,${pin},${realAngle}`);
+      : (hasCurrentProtection && commandId
+        ? `M,${commandId},${pin},${realAngle}`
+        : `S,${pin},${realAngle}`);
     try { await writer.write(enc.encode(command + `\n`)); }
     catch(e) {
       appendSerialLog(`🛑 시리얼 끊김 — 실행 중지: ${e.message}`);
@@ -1560,7 +1570,7 @@ async function sendServo(pin, angle, options) {
 
     async function verifyServoAction(startedAt) {
       const elapsed = performance.now() - startedAt;
-      await runtimeDelay(useSerial ? Math.max(0, 1100 - elapsed) : Math.max(0, 30 - elapsed));
+      await runtimeDelay(hasCurrentProtection ? Math.max(0, 1100 - elapsed) : Math.max(0, 30 - elapsed));
     }
 
     async function rollbackAfterCurrentFault() {
@@ -2003,6 +2013,9 @@ async function sendServo(pin, angle, options) {
       try { if (writer) writer.releaseLock(); } catch(_) {}
       if (simStatusEl) { simStatusEl.textContent = '● 대기 중'; simStatusEl.classList.remove('running'); }
             hideRunLock(); // v2.9.1: 실행 종료 시 잠금 해제
+      if (!simOnly && window.exitDigitalTwinLayout) {
+        window.exitDigitalTwinLayout();
+      }
 
       const totalSec = ((performance.now() - startTime) / 1000).toFixed(1);
       appendSerialLog(`📊 총 ${loopCount}회 반복, ${totalSec}초 소요`);
@@ -2097,13 +2110,16 @@ async function sendServo(pin, angle, options) {
     });
 
     document.getElementById('btnRunRealtime')?.addEventListener('click', async () => {
-      const selectedMode = ['real', 'sim', 'twin'].includes(window.actionMode)
-        ? window.actionMode
-        : 'real';
-      if (selectedMode !== 'sim' && (!window._serialPort || !window._serialPort.writable)) {
+      if (!window._serialPort || !window._serialPort.writable) {
         await window.customAlert('로봇이 연결되지 않았습니다.\n시뮬레이션 시작 단추를 누르세요');
         return;
       }
+      if (window.stopJoystickManual && window.isJoystickManualActive && window.isJoystickManualActive()) {
+        await window.stopJoystickManual();
+      }
+      // 실시간 실행은 항상 실물과 기존 3D 모델을 함께 보여주는 디지털 트윈이다.
+      window.twinUnlocked = true;
+      if (window.setActionMode) window.setActionMode('twin', { silent: true });
       runProgram();
     });
 
@@ -2205,6 +2221,11 @@ async function sendServo(pin, angle, options) {
   // Blockly 필드가 회색으로 남아 창을 전환해야 다시 입력되는 현상이 생긴다.
   function stopRuntimeForSerialTransition() {
     window._runtimeRunning = false;
+    if (window.stopJoystickManual && window.isJoystickManualActive && window.isJoystickManualActive()) {
+      window.stopJoystickManual({ localOnly: true, force: true });
+    } else if (window.exitDigitalTwinLayout) {
+      window.exitDigitalTwinLayout({ force: true });
+    }
     hideRunLock();
     const simStatusEl = document.getElementById('simStatus');
     if (simStatusEl) {
@@ -2377,6 +2398,10 @@ function setupIntroPage() {
       if (!await window.customConfirm('서보를 안전 위치로 정렬한 뒤 연결을 종료합니다.\n계속할까요?')) return;
       btnSafe.disabled = true;
       let parkedConfirmed = false;
+
+      if (window.stopJoystickManual && window.isJoystickManualActive && window.isJoystickManualActive()) {
+        await window.stopJoystickManual();
+      }
 
       // 실시간 실행이 writer를 사용 중이면 먼저 중지하고 락 해제를 기다린다.
       window._runtimeRunning = false;

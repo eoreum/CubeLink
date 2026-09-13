@@ -99,6 +99,13 @@ body.graduated .graduation-banner { display: block; }
   padding: 14px 18px; background: linear-gradient(90deg, var(--gold-soft), var(--gold)); 
   color: #000; font-weight: 700; font-size: 14px; flex-shrink: 0;
 }
+#digitalTwinTelemetry { display: none; min-height: 0; }
+.digital-twin-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 12px 6px; }
+.digital-twin-title > div { display: flex; flex-direction: column; gap: 3px; color: var(--gold); font-size: 13px; }
+.digital-twin-title #manualModeBadge { color: #aaa; font-size: 11px; font-weight: 600; }
+.digital-twin-title #manualModeBadge.active { color: #65e6a5; }
+.digital-twin-shortcut { margin: 0 12px 8px; padding: 6px 8px; border: 1px solid #3e3e3e; border-radius: 6px; color: #bfbfbf; background: #101010; font-size: 10px; line-height: 1.35; }
+#digitalTwinTelemetryBody { display: flex; flex-direction: column; gap: 6px; padding: 0 8px 8px; min-height: 0; }
 #missionList { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
 
 .mission-item { display: flex; gap: 10px; padding: 12px 18px; cursor: pointer; border-left: 3px solid transparent; color: var(--warm-white); }
@@ -225,6 +232,33 @@ pre.code-out { background: #050505; color: #c8c8c8; padding: 14px; border-radius
   width: 100%;
   height: clamp(180px, 28vh, 280px) !important;
   max-height: 280px;
+}
+
+/* 실시간 실행 동안에만 사용하는 전용 디지털 트윈 화면 */
+body.digital-twin-running .layout { grid-template-columns: minmax(290px, 23vw) 1fr; }
+body.digital-twin-running .panel-left { grid-column: 1; }
+body.digital-twin-running .panel-center { display: none; }
+body.digital-twin-running .panel-right { grid-column: 2; border-left-color: var(--gold-soft); }
+body.digital-twin-running .panel-left > .panel-header,
+body.digital-twin-running #missionList { display: none; }
+body.digital-twin-running #digitalTwinTelemetry { display: flex; flex: 0 1 auto; flex-direction: column; min-height: 0; border-bottom: 1px solid #333; }
+body.digital-twin-running #serialMonitorBar { display: flex; flex: 1 1 220px; height: auto; min-height: 140px; }
+body.digital-twin-running #serialMonitorBar.collapsed { flex: 0 0 32px; min-height: 32px; }
+body.digital-twin-running .panel-right > .tabs,
+body.digital-twin-running .panel-right > .tab-body:not([data-body="sim"]),
+body.digital-twin-running .sim-controls,
+body.digital-twin-running .sim-stage > .sim-row { display: none !important; }
+body.digital-twin-running .panel-right > .tab-body[data-body="sim"] { display: block !important; padding: 8px !important; overflow: hidden !important; }
+body.digital-twin-running .sim-stage { height: 100%; padding: 0; border: 0; border-radius: 0; }
+body.digital-twin-running #robot-3d-view { display: block !important; flex: 1 1 auto; height: 100% !important; max-height: none !important; margin: 0 !important; border-radius: 6px !important; }
+body.digital-twin-running #digitalTwinTelemetryBody .sim-row { display: flex !important; padding: 3px; }
+body.digital-twin-running #digitalTwinTelemetryBody #servoTelemetryRow > div:last-child { grid-template-columns: repeat(2, 1fr) !important; }
+body.digital-twin-running #digitalTwinTelemetryBody .joy-pad { width: 70px; height: 70px; }
+
+@media (max-width: 900px) {
+  body.digital-twin-running .layout { grid-template-columns: 260px 1fr; }
+  body.digital-twin-running header { padding-left: 10px; padding-right: 10px; }
+  body.digital-twin-running .header-actions > :not(#btnRunRealtime):not(#portStatusBadge) { display: none; }
 }
 
 /* 4축 서보 미니 표시 */
