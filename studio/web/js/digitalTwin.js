@@ -73,10 +73,11 @@
 
   function enterDigitalTwinLayout(options) {
     options = options || {};
+    if (!window.twinUnlocked || window.actionMode !== 'twin') return false;
     if (state.layoutActive) {
       if (options.manual != null) state.manualActive = !!options.manual;
       updateManualBadge();
-      return;
+      return true;
     }
     const telemetryBody = document.getElementById('digitalTwinTelemetryBody');
     const leftPanel = document.querySelector('.panel-left');
@@ -95,6 +96,7 @@
     updateManualBadge();
     if (window.Sim && typeof window.Sim.init === 'function') window.Sim.init();
     window.dispatchEvent(new Event('resize'));
+    return true;
   }
 
   function exitDigitalTwinLayout(options) {
@@ -212,6 +214,10 @@
   async function startJoystickManual(options) {
     options = options || {};
     if (state.manualActive || state.manualStarting) return;
+    if (!window.twinUnlocked || window.actionMode !== 'twin') {
+      if (window.showToast) window.showToast('시리얼 창에 twin을 입력해 디지털 트윈을 먼저 활성화하세요.', 'warn', 3500);
+      return;
+    }
     if (!window._serialPort || !window._serialPort.writable ||
         !window._cubeSafety || !window._cubeSafety.initialized) {
       if (window.showToast) window.showToast('로봇 연결 및 안전 초기화를 먼저 완료하세요.', 'warn', 3500);
@@ -220,8 +226,6 @@
     state.manualStarting = true;
     try {
       if (!await waitForRuntimeStop()) throw new Error('실행 중인 프로그램이 아직 정지되지 않았습니다.');
-      window.twinUnlocked = true;
-      if (window.setActionMode) window.setActionMode('twin', { silent: true });
       state.nativeManual = window._cubeSafety.manualProtocol === 'JM1';
       if (state.nativeManual && !options.fromBoard) {
         const responseWait = window.waitForBoardResponse(['MANUAL_ACTIVE', 'ERR'], 3000);
@@ -277,9 +281,9 @@
       state.nativeManual = true;
       state.manualActive = true;
       window._manualJoystickActive = true;
-      window.twinUnlocked = true;
-      if (window.setActionMode) window.setActionMode('twin', { silent: true });
-      enterDigitalTwinLayout({ manual: true });
+      if (window.twinUnlocked && window.actionMode === 'twin') {
+        enterDigitalTwinLayout({ manual: true });
+      }
       appendLog('🕹 조이스틱 제스처로 하드웨어 수동조작 모드 진입');
     } else if (state.manualActive && state.nativeManual) {
       state.manualActive = false;

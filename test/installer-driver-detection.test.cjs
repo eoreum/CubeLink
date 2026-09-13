@@ -40,8 +40,8 @@ if (installer.includes('"$SYSDIR\\pnputil.exe" /add-driver')) {
   throw new Error('Driver installation still uses the broken direct SysWOW64 pnputil path.');
 }
 
-if (packageJson.version !== '3.6.4') {
-  throw new Error(`Expected Studio 3.6 compatibility version 3.6.4, found ${packageJson.version}`);
+if (packageJson.version !== '3.6.5') {
+  throw new Error(`Expected Studio 3.6 compatibility version 3.6.5, found ${packageJson.version}`);
 }
 
 console.log('Conditional CH340/CH341 problem detection and native pnputil routing verified');

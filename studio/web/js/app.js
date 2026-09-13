@@ -1494,7 +1494,7 @@ checkGraduation() {
       if (simStatusEl) { simStatusEl.textContent = '● 대기 중'; simStatusEl.classList.remove('running'); }
       return;
     }
-    if (!simOnly && window.enterDigitalTwinLayout) {
+    if (runtimeMode === 'twin' && window.enterDigitalTwinLayout) {
       window.enterDigitalTwinLayout({ manual: false });
     }
     // v2.9.1: 실행 중 편집 잠금 (시뮬=금색, 실시간=빨강) — setup 확인 후 켬
@@ -2013,7 +2013,7 @@ async function sendServo(pin, angle, options) {
       try { if (writer) writer.releaseLock(); } catch(_) {}
       if (simStatusEl) { simStatusEl.textContent = '● 대기 중'; simStatusEl.classList.remove('running'); }
             hideRunLock(); // v2.9.1: 실행 종료 시 잠금 해제
-      if (!simOnly && window.exitDigitalTwinLayout) {
+      if (runtimeMode === 'twin' && window.exitDigitalTwinLayout) {
         window.exitDigitalTwinLayout();
       }
 
@@ -2110,16 +2110,18 @@ async function sendServo(pin, angle, options) {
     });
 
     document.getElementById('btnRunRealtime')?.addEventListener('click', async () => {
-      if (!window._serialPort || !window._serialPort.writable) {
+      const selectedMode = ['real', 'sim', 'twin'].includes(window.actionMode)
+        ? window.actionMode
+        : 'real';
+      if (selectedMode !== 'sim' && (!window._serialPort || !window._serialPort.writable)) {
         await window.customAlert('로봇이 연결되지 않았습니다.\n시뮬레이션 시작 단추를 누르세요');
         return;
       }
       if (window.stopJoystickManual && window.isJoystickManualActive && window.isJoystickManualActive()) {
         await window.stopJoystickManual();
       }
-      // 실시간 실행은 항상 실물과 기존 3D 모델을 함께 보여주는 디지털 트윈이다.
-      window.twinUnlocked = true;
-      if (window.setActionMode) window.setActionMode('twin', { silent: true });
+      // 기본 실시간 실행은 실물 전용이다. 디지털 트윈은 시리얼 창에
+      // `twin`을 입력해 명시적으로 해금한 경우에만 선택된다.
       runProgram();
     });
 

@@ -13,14 +13,14 @@ for (const required of [
   'digitalTwinTelemetry', 'servoTelemetryRow', 'joystickTelemetryRow',
   'js/firmwareCompatibility.js',
   'js/digitalTwin.js', "manualProtocol: ''", "head === 'MANUAL_ACTIVE'",
-  'window.servoAngles[pin] = ang', 'compatibility.evaluateHandshake'
+  'window.servoAngles[pin] = ang', 'compatibility.evaluateHandshake',
+  'window.unlockTwinMode', "window.setActionMode('twin', { silent:true })"
 ]) {
   if (!index.includes(required)) throw new Error(`Studio 트윈 UI/파서 누락: ${required}`);
 }
 
 for (const required of [
-  'enterDigitalTwinLayout({ manual: false })',
-  "window.setActionMode('twin', { silent: true })",
+  "runtimeMode === 'twin' && window.enterDigitalTwinLayout",
   'window.exitDigitalTwinLayout()',
   "window._cubeSafety.currentProtection === 'CUR4'",
   ': `S,${pin},${realAngle}`'
@@ -28,11 +28,19 @@ for (const required of [
   if (!app.includes(required)) throw new Error(`실시간 실행 트윈 전환 누락: ${required}`);
 }
 
+const realtimeHandlerStart = app.indexOf("document.getElementById('btnRunRealtime')?.addEventListener");
+const realtimeHandlerEnd = app.indexOf("document.getElementById('btnSimStart')?.addEventListener", realtimeHandlerStart);
+const realtimeHandler = app.slice(realtimeHandlerStart, realtimeHandlerEnd);
+if (realtimeHandler.includes('twinUnlocked = true') || realtimeHandler.includes("setActionMode('twin'")) {
+  throw new Error('일반 실시간 실행 버튼이 디지털 트윈을 자동 해금합니다.');
+}
+
 for (const required of [
   "SHORTCUT_LABEL = 'Ctrl+Alt+J'", "event.code === 'KeyJ'",
   "window.sendBoardCommand('JM,1')", "window.sendBoardCommand('JM,0')",
   'FALLBACK_DEADZONE = 120', 'FALLBACK_FILTER_DIVISOR = 4',
-  'FALLBACK_MAX_STEP = 2', 'startFallbackController()'
+  'FALLBACK_MAX_STEP = 2', 'startFallbackController()',
+  "!window.twinUnlocked || window.actionMode !== 'twin'"
 ]) {
   if (!twin.includes(required)) throw new Error(`수동조작 컨트롤러 누락: ${required}`);
 }
