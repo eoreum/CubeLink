@@ -338,6 +338,35 @@ body.graduated #serialMonitorBar {
 }
 body.graduated #serialMonitorBar.collapsed { height: 36px; }
 
+/* 졸업 상태에서도 명시적으로 활성화한 행사 디지털 트윈 배치가 우선한다. */
+body.graduated.digital-twin-running .layout {
+  grid-template-columns: minmax(290px, 23vw) 1fr;
+}
+body.graduated.digital-twin-running .panel-left {
+  display: flex;
+  grid-column: 1;
+}
+body.graduated.digital-twin-running .panel-center { display: none; }
+body.graduated.digital-twin-running .panel-right {
+  grid-column: 2;
+  border-left-color: var(--gold-soft);
+}
+body.graduated.digital-twin-running #serialMonitorBar {
+  display: flex;
+  height: auto;
+  flex: 1 1 220px;
+  min-height: 140px;
+}
+body.graduated.digital-twin-running #serialMonitorBar.collapsed {
+  height: auto;
+  flex: 0 0 32px;
+  min-height: 32px;
+}
+
+@media (max-width: 900px) {
+  body.graduated.digital-twin-running .layout { grid-template-columns: 260px 1fr; }
+}
+
 /* ════════════════════════════════════════════════════════════
    🎨 Blockly 카테고리 블랙&골드 + 메뉴 수직 정렬 (정리)
    ════════════════════════════════════════════════════════════ */

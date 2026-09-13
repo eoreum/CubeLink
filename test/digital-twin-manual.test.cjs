@@ -48,7 +48,10 @@ for (const required of [
 for (const required of [
   'body.digital-twin-running .layout',
   'body.digital-twin-running #robot-3d-view',
-  'body.digital-twin-running #serialMonitorBar'
+  'body.digital-twin-running #serialMonitorBar',
+  'body.graduated.digital-twin-running .layout',
+  'body.graduated.digital-twin-running .panel-left',
+  'body.graduated.digital-twin-running #serialMonitorBar'
 ]) {
   if (!css.includes(required)) throw new Error(`디지털 트윈 레이아웃 CSS 누락: ${required}`);
 }

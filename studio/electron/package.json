@@ -1,6 +1,6 @@
 {
   "name": "cubelinkelectron",
-  "version": "3.6.5",
+  "version": "3.6.6",
   "description": "CubeLink educational robotics studio by Eoreum",
   "main": "main.js",
   "scripts": {
