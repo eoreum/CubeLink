@@ -1,0 +1,10 @@
+/* Match the physical conveyor: ultrasonic sensor on the left, motor on the right. */
+.motorHousing {
+  left: auto;
+  right: -18px;
+}
+
+.sensorRig {
+  left: 36px;
+  right: auto;
+}

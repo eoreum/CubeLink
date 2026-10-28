@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CubeLink Conveyor Studio</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="conveyor-orientation.css">
+  <link rel="stylesheet" href="blockly-theme.css">
+  <link rel="stylesheet" href="mission-hint.css">
+  <link rel="stylesheet" href="laptop.css">
+  <script src="libs/blockly/blockly.min.js"></script>
+  <script src="libs/blockly/ko.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand"><div class="logo" id="brandLogo" title="통합 대문으로 돌아가기">CL</div><div><h1>CUBELINK CONVEYOR STUDIO</h1><small>Eoreum · Windows 설치형 v<span id="appVersion">0.13.5</span></small></div></div>
+    <div class="headerActions"><button class="btn factoryLinkBtn" id="factoryLinkBtn">🔗 CubeLink 연동</button><button class="btn" id="saveBtn">💾 저장</button><button class="btn" id="loadBtn">📂 불러오기</button><button class="btn" id="fullscreenBtn">↗ 트윈 확대</button></div>
+  </header>
+
+  <section class="connectionBar">
+    <div class="connectionStatus"><span id="statusDot" class="dot off"></span><div><b id="connectionTitle">컨베이어 연결 안 됨</b><small id="connectionDetail">COM 포트를 검색하거나 시뮬레이션으로 학습할 수 있습니다.</small></div></div>
+    <select id="portSelect" aria-label="COM 포트"><option value="">COM 포트 선택</option></select>
+    <button class="btn gold" id="autoBtn">🔎 자동 찾기</button>
+    <button class="btn" id="refreshBtn">⟳ 재검색</button>
+    <button class="btn" id="connectBtn">연결</button>
+    <button class="btn danger" id="disconnectBtn" disabled>연결 해제</button>
+    <label class="toggle"><input type="checkbox" id="reconnectToggle" checked> 자동 재연결</label>
+  </section>
+  <div id="helpBox" class="helpBox hidden"><b>연결 점검</b><span id="helpText"></span></div>
+
+  <section class="modebar">
+    <span id="modeLabel">블록 시뮬레이션 모드 · 실물 제어 미연결</span>
+    <div class="manual">
+      <strong class="controlLabel">실물 실시간</strong>
+      <button class="btn gold" id="realtimeRunBtn" disabled>▶ 실시간 실행</button>
+      <button class="btn gold" id="forwardBtn" disabled>▶ 정방향</button>
+      <button class="btn" id="reverseBtn" disabled>◀ 역방향</button>
+      <button class="btn danger" id="manualStopBtn" disabled>■ 정지</button>
+      <label>속도 <input id="speedSlider" type="range" min="0" max="100" value="60" disabled><b id="speedValue">60%</b></label>
+    </div>
+    <div class="simulationActions"><strong class="controlLabel">블록 시뮬레이션</strong><button class="btn gold" id="runBtn">▶ 시뮬레이션 실행</button><button class="btn" id="stopBtn">■ 시뮬 중지</button><button class="btn" id="resetBtn">⟳ 시뮬 초기화</button></div>
+  </section>
+
+  <main class="layout">
+    <aside class="panel missionsPanel">
+      <div class="panelHeader">🎯 9개 미션</div>
+      <div class="leftBody"><div id="missionList" class="missionList"></div><div class="serial"><div class="serialTitle">📡 실시간 로그</div><div id="log" class="log">CubeLink Conveyor Studio 준비 완료\n</div></div></div>
+    </aside>
+    <section class="panel center">
+      <div class="missionBanner"><div class="missionTitleRow"><div id="missionTitle" class="missionTitle">미션</div><button id="hintBtn" class="missionHintBtn" type="button" aria-expanded="false">💡 힌트</button></div><div id="missionDesc" class="missionDesc"></div><div id="missionHint" class="missionHint hidden" role="note"></div></div>
+      <div class="toolbar"><button class="btn" id="reloadBtn">🔄 기본 블록</button><button class="btn" id="clearBtn">🗑️ 비우기</button><button class="btn" id="freeBtn">🎨 자유 창작</button><span class="autosave">● 자동 저장</span></div>
+      <div class="blocklyWrap"><div id="blocklyDiv" class="blocklyDiv"></div></div>
+    </section>
+    <aside class="panel twinPanel">
+      <div class="panelHeader">🎮 시뮬레이션 디지털 트윈</div>
+      <div class="rightBody">
+        <div id="simStage" class="simStage">
+          <div class="conveyorBody"><div class="motorHousing">M</div><div class="belt"><div class="chain" id="chain"></div><div id="box" class="box"></div></div><div class="leg leftLeg"></div><div class="leg rightLeg"></div></div>
+          <div class="sensorRig"><span>초음파</span><div class="sensor"><i></i><i></i></div><div class="waves">)))</div></div>
+        </div>
+        <div class="statusGrid"><div class="statusCard"><small>운전 상태</small><b id="motorState">정지</b></div><div class="statusCard"><small>속도</small><b id="speedState">0%</b></div><div class="statusCard"><small>모의 초음파</small><b id="distanceState">-- cm</b></div><div class="statusCard"><small>실물 초음파</small><b id="hardwareDistanceState">-- cm</b></div><div class="statusCard"><small>장치 확인</small><b id="deviceState">미연결</b></div></div>
+        <div class="simControls"><button class="btn gold" id="insertBtn">📦 제품 투입</button><button class="btn" id="nearBtn">모의 접근</button><button class="btn" id="farBtn">모의 이탈</button></div>
+        <div id="notice" class="notice">자동 찾기는 HELLO/STATUS 응답으로 CubeLink Conveyor 펌웨어를 확인합니다.</div>
+        <div class="pinmap"><b>펌웨어 핀맵</b><span>D3 PWMA · D7 AIN1 · D8 AIN2 · D12 STBY</span><span>D4 TRIG · D5 ECHO</span></div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="factoryLinkPanel" class="factoryOverlay" role="dialog" aria-modal="true" aria-labelledby="factoryLinkTitle">
+    <section class="factoryCard">
+      <div class="factoryHeading"><div><h2 id="factoryLinkTitle">🔗 CubeLink Studio 연동</h2><p>두 PC를 같은 Wi-Fi에 연결하고 양쪽에 같은 수업 코드와 모둠 번호를 입력하세요.</p></div><button class="btn" id="factoryLinkClose">✕</button></div>
+      <div class="factoryFields">
+        <label>수업 코드<input id="factorySession" maxlength="24" value="CLASS-A" autocomplete="off"></label>
+        <label>모둠 번호<select id="factoryGroup"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select></label>
+        <label>감지 거리<input id="factoryDistance" type="number" min="3" max="100" value="15"><span>cm</span></label>
+      </div>
+      <div id="factoryLinkStatus" class="factoryLinkStatus">연동 대기</div>
+      <div class="factoryActions"><button class="btn gold" id="factoryLinkConnect">연동 시작</button><button class="btn danger" id="factoryLinkDisconnect" disabled>연동 종료</button><button class="btn" id="factoryArrivalTest" disabled>📦 물체 도착 테스트</button></div>
+      <pre id="factoryLinkLog" class="factoryLinkLog"></pre>
+      <p class="factoryNote">연동되면 물체를 3회 연속 감지했을 때 컨베이어가 정지하고 로봇팔을 호출합니다. 로봇팔 작업이 끝나면 자동으로 다시 출발합니다.</p>
+    </section>
+  </div>
+
+  <xml id="toolbox" style="display:none">
+    <category name="🔧 기본 구조" colour="#D4AF37"><block type="conv_setup_loop"></block><block type="conv_wait"></block></category>
+    <category name="🔁 흐름 제어" colour="#5C81A6"><block type="conv_repeat"></block><block type="conv_forever"></block><block type="conv_if_distance"></block></category>
+    <category name="↔ 컨베이어" colour="#3498DB"><block type="conv_motor"></block><block type="conv_stop"></block><block type="conv_speed"></block></category>
+    <category name="📡 센서" colour="#F39C12"><block type="conv_ultra"></block><block type="conv_wait_near"></block><block type="conv_wait_far"></block><block type="conv_count"></block><block type="conv_jam"></block></category>
+    <category name="🏭 연동·안전" colour="#27AE60"><block type="conv_safe"></block><block type="conv_handoff"></block></category>
+  </xml>
+  <script src="app.js"></script>
+  <script src="factoryCollaboration.js"></script>
+  <script src="shellNavigation.js"></script>
+</body>
+</html>

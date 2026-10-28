@@ -1,0 +1,56 @@
+/* Flex sizing removes the fixed 207px header assumption on scaled laptops. */
+body { display: flex; flex-direction: column; overflow: hidden; }
+header, .connectionBar, .modebar, .helpBox { flex: 0 0 auto; }
+.layout { height: auto; flex: 1 1 auto; min-height: 0; }
+
+@media (max-width: 1100px) {
+  header { height: auto; min-height: 54px; padding: 5px 9px; gap: 8px; }
+  .logo { width: 38px; height: 38px; font-size: 18px; }
+  .brand { gap: 7px; }
+  .brand h1 { font-size: 15px; }
+  .brand small { font-size: 10px; }
+  .headerActions { flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+  .headerActions .btn { padding: 5px 7px; font-size: 10px; }
+  .connectionBar { padding: 5px 8px; gap: 5px; }
+  .connectionStatus { min-width: 230px; }
+  .connectionStatus small { max-width: 300px; font-size: 10px; }
+  .connectionBar select { min-width: 145px; padding: 5px; }
+  .connectionBar .btn { padding: 5px 7px; font-size: 10px; }
+  .toggle { font-size: 10px; }
+  .modebar { min-height: 44px; margin: 4px 6px; padding: 5px 7px; font-size: 11px; }
+  .simulationActions { gap: 4px; }
+  .simulationActions .btn { padding: 5px 7px; font-size: 10px; }
+  .layout { grid-template-columns: 190px minmax(270px, 1fr) 290px; gap: 5px; padding: 0 5px 5px; }
+  .panelHeader { padding: 7px 9px; font-size: 14px; }
+  .leftBody, .rightBody { padding: 6px; height: calc(100% - 36px); }
+  .missionBtn { padding: 6px; font-size: 11px; }
+  .log { height: 90px; }
+  .missionBanner { padding: 6px 8px; }
+  .missionTitle { font-size: 14px; }
+  .toolbar { padding: 4px 6px; gap: 4px; }
+  .toolbar .btn { padding: 5px 7px; font-size: 10px; }
+  .simStage { height: clamp(150px, 32vh, 230px); }
+  .notice, .pinmap { padding: 6px; font-size: 10px; }
+}
+
+@media (max-width: 930px) {
+  .brand h1 { max-width: 185px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .connectionStatus { min-width: 200px; flex: 1 1 260px; }
+  .layout { grid-template-columns: 170px minmax(240px, 1fr) 245px; }
+  .statusGrid { gap: 4px; }
+  .statusCard { padding: 5px; font-size: 11px; }
+  .simControls .btn { padding: 5px 6px; font-size: 10px; }
+}
+
+@media (max-height: 560px) {
+  header { min-height: 46px; }
+  .connectionBar { min-height: 48px; }
+  .connectionStatus small { display: none; }
+  .modebar { min-height: 38px; }
+  .simStage { height: 135px; }
+  .serial { margin-top: 5px; }
+  .log { height: 65px; }
+  .statusGrid { margin: 5px 0; }
+  .notice, .pinmap { margin-top: 4px; }
+  .pinmap { display: none; }
+}

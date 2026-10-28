@@ -1,0 +1,73 @@
+{
+  "name": "cubelinkelectron",
+  "version": "4.0.0",
+  "description": "CubeLink educational robotics studio by Eoreum",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Eoreum",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "@serialport/parser-readline": "^13.0.0",
+    "serialport": "^13.0.0"
+  },
+  "build": {
+    "appId": "com.eoreum.cubelinkstudio",
+    "productName": "CubeLink Studio",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "factoryNetwork.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../web",
+        "to": "web",
+        "filter": [
+          "**/*",
+          "!**/*.bak",
+          "!**/*.backup*",
+          "!**/*.broken",
+          "!**/*.tmp"
+        ]
+      },
+      {
+        "from": "../../electron/drivers/CH341SER/CH341SER",
+        "to": "drivers/CH341SER",
+        "filter": [
+          "CH341SER.INF",
+          "CH341SER.CAT",
+          "*.sys",
+          "*.SYS",
+          "*.dll",
+          "*.DLL"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "include": "installer.nsh",
+      "artifactName": "Cubelink_Studio.exe"
+    }
+  }
+
+}

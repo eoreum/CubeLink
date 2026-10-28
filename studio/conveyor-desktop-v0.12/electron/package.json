@@ -1,0 +1,59 @@
+{
+  "name": "cubelink-conveyor-studio",
+  "version": "0.13.5",
+  "description": "CubeLink Conveyor Studio for Windows",
+  "main": "main.js",
+  "author": "Eoreum",
+  "license": "MIT",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis portable",
+    "test": "node --test ../test/*.test.cjs"
+  },
+  "dependencies": {
+    "@serialport/parser-readline": "^13.0.0",
+    "serialport": "^13.0.0"
+  },
+  "devDependencies": {
+    "electron": "43.1.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.eoreum.cubelink.conveyorstudio",
+    "productName": "CubeLink Conveyor Studio",
+    "asar": true,
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "protocol.js", "factoryNetwork.js", "package.json"],
+    "extraResources": [
+      { "from": "../web", "to": "web", "filter": ["**/*"] },
+      { "from": "../firmware", "to": "firmware", "filter": ["**/*"] },
+      {
+        "from": "../../electron/drivers/CH341SER/CH341SER",
+        "to": "drivers/CH341SER",
+        "filter": ["CH341SER.INF", "CH341SER.CAT", "*.sys", "*.SYS", "*.dll", "*.DLL"]
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CubeLink Conveyor Studio",
+      "include": "installer.nsh",
+      "artifactName": "CubeLink_Conveyor_Studio_v${version}_Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "CubeLink_Conveyor_Studio_v${version}_Portable.${ext}"
+    }
+  }
+}

@@ -1,0 +1,62 @@
+#factoryPanel {
+  position: fixed;
+  inset: 0;
+  z-index: 100001;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, .72);
+}
+
+#factoryPanel.open { display: flex; }
+
+.factory-card {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 24px;
+  border: 2px solid #D4AF37;
+  border-radius: 14px;
+  background: #181b20;
+  color: #fff;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .65);
+}
+
+.factory-card h2 { margin: 0 0 5px; color: #D4AF37; }
+.factory-card .factory-help { margin: 0 0 18px; color: #bbb; font-size: 13px; line-height: 1.55; }
+.factory-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.factory-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #ddd; }
+.factory-field:first-child { grid-column: 1 / -1; }
+.factory-field input,
+.factory-field select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid #555;
+  border-radius: 7px;
+  background: #272c33;
+  color: #fff;
+  font-size: 15px;
+}
+.factory-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.factory-status {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #555;
+  border-radius: 8px;
+  background: #0d1014;
+  color: #ddd;
+  line-height: 1.5;
+}
+.factory-status.paired { border-color: #2ecc71; color: #8df0b7; }
+.factory-status.error { border-color: #e74c3c; color: #ff9f96; }
+.factory-flow { margin-top: 14px; padding: 12px; border-radius: 8px; background: #22262c; font-size: 12px; color: #bbb; }
+.factory-log { margin-top: 12px; min-height: 72px; max-height: 150px; overflow: auto; white-space: pre-wrap; font: 12px/1.5 Consolas, monospace; color: #9ad29a; }
+#factoryDoneBtn { display: none; width: 100%; margin-top: 12px; }
+#factoryBadge.paired { border-color: #2ecc71 !important; color: #8df0b7 !important; }
+
+@media (max-width: 620px) {
+  .factory-form { grid-template-columns: 1fr; }
+  .factory-field:first-child { grid-column: auto; }
+}

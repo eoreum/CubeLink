@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CubeLink Studio 4.1.8 통합판</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="driver.css">
+  <link rel="stylesheet" href="responsive.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo">CL</span><div><strong>CUBELINK STUDIO</strong><small>Eoreum 통합 학습 플랫폼 · v<span id="version">4.1.8</span></small></div></div>
+    <span class="ready"><i></i> 사용할 장치를 선택하세요</span>
+  </header>
+
+  <main>
+    <section id="driverPanel" class="driverPanel checking" aria-live="polite">
+      <span id="driverDot" class="driverDot" aria-hidden="true"></span>
+      <div class="driverCopy">
+        <b id="driverTitle">USB·CH340 연결 상태를 점검하고 있습니다…</b>
+        <span id="driverDetail">잠시만 기다려 주세요.</span>
+      </div>
+      <div class="driverActions">
+        <button id="driverInstall" type="button" hidden>CH340 드라이버 설치</button>
+        <button id="driverRefresh" type="button">다시 점검</button>
+      </div>
+    </section>
+
+    <section class="hero">
+      <p class="eyebrow">CUBELINK LEARNING PLATFORM</p>
+      <h1>오늘 사용할 장치를<br><em>선택하세요</em></h1>
+      <p>로봇팔과 컨베이어를 하나의 CubeLink Studio에서 학습합니다.<br>저장한 미션과 코딩 내용은 각 장치별로 그대로 유지됩니다.</p>
+    </section>
+
+    <section class="deviceGrid" aria-label="장치 선택">
+      <article class="deviceCard armCard">
+        <div class="cardTop"><span class="number">01</span><span class="tag">ROBOT ARM</span></div>
+        <div class="visual armVisual" aria-hidden="true"><span class="base"></span><span class="joint one"></span><span class="joint two"></span><span class="grip"></span></div>
+        <h2>큐브링크 로봇팔</h2>
+        <p>4축 서보 제어, 블록 코딩, 3D 시뮬레이션과 9단계 미션을 시작합니다.</p>
+        <ul><li>D6 · D9 · D10 · D11 제어</li><li>조이스틱 · 초음파 센서</li><li>일반형 · Legacy 호환 연결</li></ul>
+        <button id="openArm">로봇팔 스튜디오 열기 <span>→</span></button>
+      </article>
+
+      <article class="deviceCard conveyorCard">
+        <div class="cardTop"><span class="number">02</span><span class="tag">CONVEYOR</span></div>
+        <div class="visual conveyorVisual" aria-hidden="true"><span class="belt"></span><span class="box"></span><span class="sensor"></span></div>
+        <h2>큐브링크 컨베이어</h2>
+        <p>모터 방향·속도, 초음파 조건문, 디지털 트윈과 9단계 미션을 시작합니다.</p>
+        <ul><li>시뮬레이션 · 실시간 실행 분리</li><li>초음파 조건 · 반복 코딩</li><li>스마트팩토리 로봇팔 연동</li></ul>
+        <button id="openConveyor">컨베이어 스튜디오 열기 <span>→</span></button>
+      </article>
+    </section>
+
+    <section class="factoryStrip">
+      <div><b>SMART FACTORY</b><span>두 대의 PC에서 각각 로봇팔과 컨베이어를 선택하면 같은 Wi-Fi 수업 코드로 연동할 수 있습니다.</span></div>
+      <span class="flow">컨베이어 감지 <i>→</i> 로봇팔 작업 <i>→</i> 자동 재출발</span>
+    </section>
+  </main>
+
+  <footer>© Eoreum · CubeLink Studio 통합 시험판</footer>
+  <script src="app.js"></script>
+</body>
+</html>

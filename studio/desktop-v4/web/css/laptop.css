@@ -1,0 +1,70 @@
+/* Keep all controls reachable on 1366x768 laptops at 125% and 150% DPI. */
+.intro-page { height: 100dvh; }
+
+@media screen and (max-width: 1150px) {
+  header {
+    height: auto !important;
+    min-height: 52px;
+    padding: 5px 9px !important;
+    gap: 6px;
+    align-items: flex-start !important;
+  }
+  .brand { gap: 7px !important; padding-top: 2px; }
+  .brand-title { font-size: 14px !important; }
+  .brand-version { display: block; margin-left: 0 !important; font-size: 9px !important; }
+  .header-actions {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px !important;
+  }
+  .header-actions > *, .header-actions button.btn {
+    min-height: 27px !important;
+    padding: 4px 7px !important;
+    font-size: 10px !important;
+  }
+  .progress-badge { padding: 5px 7px !important; }
+  .power-mode-control { min-height: 27px !important; padding: 0 5px !important; font-size: 9px !important; }
+  .power-mode-control select { max-width: 105px !important; padding: 2px !important; }
+  #portStatusBadge {
+    min-height: 27px !important;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 9px !important;
+  }
+}
+
+@media screen and (max-width: 1150px) and (orientation: landscape) {
+  .layout {
+    grid-template-columns: 190px minmax(260px, 1fr) 260px !important;
+    height: auto !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+  #robot-3d-view {
+    height: clamp(110px, 24vh, 170px) !important;
+    min-height: 110px !important;
+    flex-shrink: 1 !important;
+  }
+}
+
+@media screen and (max-width: 920px) and (orientation: landscape) {
+  .layout { grid-template-columns: 170px minmax(240px, 1fr) 235px !important; }
+  .mission-item { padding: 8px 9px !important; gap: 6px !important; }
+  .panel-header, .mission-banner { padding: 7px 9px !important; }
+  .center-toolbar { height: 36px !important; padding: 0 7px !important; gap: 4px !important; }
+  .center-toolbar button { padding: 4px 7px !important; font-size: 10px !important; }
+  .tabs .tab { padding: 8px 3px !important; font-size: 10px !important; }
+}
+
+@media (max-height: 620px) {
+  .intro-content { max-width: 380px; padding: 10px; }
+  .intro-image-container { width: min(58vh, 330px); margin: 0 auto 10px; }
+  .intro-title { font-size: 20pt; margin-bottom: 3px; }
+  .intro-subtitle { margin-bottom: 5px; font-size: 10pt; }
+  .intro-desc { margin-bottom: 12px; }
+  .btn-intro-start { padding: 9px 32px; }
+  .unified-intro-logo { top: 9px; left: 10px; width: 48px; height: 40px; padding: 5px; }
+}

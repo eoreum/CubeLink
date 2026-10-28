@@ -1,0 +1,5 @@
+.missionTitleRow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.missionHintBtn{flex:none;padding:5px 10px;border:1px solid #8e762c;border-radius:7px;background:#211d12;color:#ffe27a;font-size:12px;font-weight:900;cursor:pointer}
+.missionHintBtn:hover,.missionHintBtn[aria-expanded="true"]{border-color:#f0cd55;background:#3a3014;color:#fff1ae}
+.missionHint{margin-top:8px;padding:9px 11px;border-left:4px solid #e0b93a;border-radius:5px;background:#252116;color:#fff1b8;font-size:12px;line-height:1.55}
+.missionHint.hidden{display:none}

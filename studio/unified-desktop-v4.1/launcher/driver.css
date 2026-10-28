@@ -1,0 +1,18 @@
+main{padding-top:30px}
+.driverPanel{display:flex;align-items:center;gap:13px;margin:0 0 28px;padding:14px 16px;border:1px solid #3d4652;border-radius:12px;background:rgba(16,20,26,.94)}
+.driverDot{width:11px;height:11px;flex:none;border-radius:50%;background:#7f8995;box-shadow:0 0 10px #7f8995}
+.driverCopy{min-width:0;display:flex;flex:1;flex-direction:column;gap:4px}
+.driverCopy b{font-size:14px}
+.driverCopy span{color:#aeb5bf;font-size:12px}
+.driverActions{display:flex;gap:8px}
+.driverActions button{padding:9px 12px;border:1px solid #606a76;border-radius:8px;background:#181e26;color:#eef1f4;font-weight:800;cursor:pointer}
+.driverActions button:hover{border-color:var(--gold)}
+.driverActions button:disabled{opacity:.55;cursor:wait}
+.driverActions #driverInstall{border-color:#efd069;background:linear-gradient(var(--gold2),#d0a82f);color:#17130a}
+.driverPanel.ready .driverDot,.driverPanel.installed .driverDot{background:var(--green);box-shadow:0 0 11px var(--green)}
+.driverPanel.driver_required{border-color:#9e7a1d}
+.driverPanel.driver_required .driverDot{background:var(--gold);box-shadow:0 0 11px var(--gold)}
+.driverPanel.check_failed .driverDot{background:#e85d67;box-shadow:0 0 11px #e85d67}
+.driverPanel.checking .driverDot,.driverPanel.installing .driverDot{background:#62a8ff;box-shadow:0 0 11px #62a8ff;animation:driverPulse 1s infinite alternate}
+@keyframes driverPulse{to{opacity:.35}}
+@media(max-width:850px){main{padding-top:22px}.driverPanel{align-items:flex-start;flex-wrap:wrap}.driverActions{width:100%}.driverActions button{flex:1}}

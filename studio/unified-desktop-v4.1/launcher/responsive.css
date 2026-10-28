@@ -1,0 +1,33 @@
+/* Laptop DPI support: 1366x768 at Windows 125%/150% scaling. */
+@media (max-height: 700px) {
+  .topbar { height: 64px; padding: 0 22px; }
+  .logo { width: 42px; height: 42px; }
+  .brand small { margin-top: 1px; }
+  main { padding: 18px 0 22px; }
+  .hero { margin-bottom: 16px; }
+  .hero .eyebrow { margin-bottom: 7px; }
+  .hero h1 { font-size: clamp(30px, 4vw, 46px); }
+  .hero > p:last-child { margin: 8px 0; line-height: 1.45; }
+  .driverPanel { margin-bottom: 16px; }
+  .deviceCard { min-height: 330px; padding: 18px 22px; }
+  .visual { height: 82px; }
+  .deviceCard h2 { font-size: 23px; }
+  .deviceCard ul { margin: 11px 0 14px; }
+  .factoryStrip { margin-top: 14px; padding: 12px 18px; }
+  footer { padding-bottom: 16px; }
+}
+
+@media (max-height: 650px) {
+  main { padding-top: 8px; }
+  .driverPanel { padding: 9px 12px; margin-bottom: 8px; }
+  .hero { margin-bottom: 8px; }
+  .hero .eyebrow { display: none; }
+  .hero h1 { font-size: 29px; }
+  .hero > p:last-child { display: none; }
+  .visual { display: none; }
+  .deviceCard { min-height: 245px; padding: 13px 18px; }
+  .deviceCard > p { min-height: 0; font-size: 12px; }
+  .deviceCard ul { gap: 4px; font-size: 11px; }
+  .deviceCard button { padding: 9px 12px; }
+  .factoryStrip { padding: 8px 14px; }
+}
