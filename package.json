@@ -1,1 +1,1 @@
-{"name":"cubelink-mission-studio-2","version":"2.0.1","private":true,"type":"module","scripts":{"test":"node --test test/*.test.js","start":"node server.cjs"}}
+{"name":"cubelink-mission-studio-2","version":"2.0.2","private":true,"type":"module","scripts":{"test":"node --test test/*.test.js","start":"node server.cjs"}}

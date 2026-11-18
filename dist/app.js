@@ -31,8 +31,8 @@ $('run').onclick=async()=>{if(busy||!simulator)return;let program;try{program=ed
   if(all){trialPass=true;celebrate(judge(world,{blocks:editor.count(),customTarget:$('custom-target').value}));}
  }catch(e){status('실행을 멈췄어요. '+e.message);}finally{lock(false);editor.highlight(null);draw();}
 };
-$('stop').onclick=async()=>{if(hardware?.isPhysical()){try{await hardware.stop();status('실물 모터 해제 확인 · 저장자세 재확인이 필요합니다.');}catch(e){status(e.message);}return;}aborted=true;runner.stop();trialPass=false;draw();status('가상 실행 정지 · 현재 자세를 유지합니다.');};
-$('reset').onclick=()=>{if(hardware?.isPhysical()){hardware.stop().catch(e=>status(e.message));status('실물 모터 해제를 요청했습니다. 가상 초기자세로 자동 이동하지 않습니다.');return;}if(busy){aborted=true;runner.stop();status('가상 실행 정지 요청 · 다시 초기화를 누르세요.');return;}resetWorld(active.id===15?10:40);status('가상 재도전 준비 완료 · 실물 자세에는 영향을 주지 않습니다.');};
+$('stop').onclick=async()=>{if(hardware?.isPhysical()){try{status(await hardware.stop());}catch(e){status(e.message);}return;}aborted=true;runner.stop();trialPass=false;draw();status('가상 실행 정지 · 현재 자세를 유지합니다.');};
+$('reset').onclick=()=>{if(hardware?.isPhysical()){hardware.stop().catch(e=>status(e.message));status('실물 정지를 요청했습니다. 가상 초기자세로 자동 이동하지 않습니다.');return;}if(busy){aborted=true;runner.stop();status('가상 실행 정지 요청 · 다시 초기화를 누르세요.');return;}resetWorld(active.id===15?10:40);status('가상 재도전 준비 완료 · 실물 자세에는 영향을 주지 않습니다.');};
 $('judge').onclick=()=>displayMode==='physical'?status('실물 결과는 관찰로 확인하세요. 가상 판정은 시뮬레이션 실행 후 가능합니다.'):celebrate(assess());$('camera').onclick=()=>simulator?.resetCamera();
 $('distance').oninput=()=>{if(displayMode==='physical'){status('실물 실행은 실제 초음파 값을 사용합니다.');return;}world.sensor=Number($('distance').value);draw();};
 $('custom-target').onchange=()=>{trialPass=false;status('내 목적지가 '+$('custom-target').value+'로 바뀌었습니다. 다시 실행하세요.');};
