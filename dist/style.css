@@ -5,3 +5,5 @@
 #hardware-dialog{max-width:800px}.hw-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0}.hw-check{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.8;margin:14px 0}.hw-check input{margin-top:6px;min-width:18px;min-height:18px}#hw-angle{width:85px;padding:9px;border:1px solid #cbd4e3;border-radius:7px}#hw-emergency{color:#ae3349;background:#fff1f3}#hw-log{max-height:180px;overflow:auto;font-size:11px;background:#f2f5fa;padding:12px}#real-run{color:#167d63;border-color:#81bfae}.hw-row strong{margin-right:auto}#hw-taught{overflow-wrap:anywhere}
 
 #hw-start-pose input{width:70px;padding:7px;border:1px solid #cbd4e3;border-radius:6px}#hw-start-pose label{font-size:12px}#hw-capabilities{color:#8a5d20}
+
+.realtime-ready{font-size:11px;color:#17816c;line-height:1.6}
